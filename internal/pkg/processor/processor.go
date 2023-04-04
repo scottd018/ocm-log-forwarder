@@ -13,7 +13,7 @@ type Processor struct {
 	Log          *logger.Logger
 	Config       *config.Config
 	Context      context.Context
-	ResponseData map[string]interface{}
+	ResponseData []byte
 }
 
 func NewProcessor(cfg *config.Config) (*Processor, error) {

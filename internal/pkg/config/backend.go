@@ -7,7 +7,7 @@ import (
 
 const (
 	// environment variables
-	defaultEnvironmentBackend = "BACKEND_TYPE"
+	DefaultEnvironmentBackend = "BACKEND_TYPE"
 
 	// default settings
 	DefaultBackendElasticSearch = "elasticsearch"
@@ -18,7 +18,7 @@ func getBackendConfig() (string, error) {
 	var backend string
 
 	// get the backend
-	switch backendType := os.Getenv(defaultEnvironmentBackend); {
+	switch backendType := os.Getenv(DefaultEnvironmentBackend); {
 	case backendType == "":
 		return DefaultBackend, nil
 	case backendType == DefaultBackendElasticSearch:

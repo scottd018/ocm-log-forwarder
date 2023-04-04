@@ -1,8 +1,6 @@
 package poller
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -50,14 +48,20 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 	// create payload
 	payload := url.Values{}
 	payload.Set("size", "1000")
-	payload.Set("search", url.QueryEscape(fmt.Sprintf("search=cluster_id='%s'", proc.Config.ClusterID)))
+	payload.Set("search", fmt.Sprintf("cluster_id = '%s'", proc.Config.ClusterID))
+
+	// create the url object with the base url and set the params
+	requestURL, err := url.Parse(serviceLogPath(poller.Token))
+	if err != nil {
+		return fmt.Errorf("unable to create base url object - %w", err)
+	}
+	requestURL.RawQuery = payload.Encode()
 
 	// create the request
-	request, err := http.NewRequest("GET", serviceLogPath(poller.Token), bytes.NewBufferString(payload.Encode()))
+	request, err := http.NewRequest("GET", requestURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("unable to create http request - %w", err)
 	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", poller.Token.BearerToken))
 
 	// send the request
@@ -79,13 +83,7 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 		return fmt.Errorf("unable to read response body - %w", err)
 	}
 
-	// marshal the response into json
-	var responseMap map[string]interface{}
-	if err := json.Unmarshal(responseData, &responseMap); err != nil {
-		return fmt.Errorf("unable to marshal response data into response map - %w", err)
-	}
-
-	proc.ResponseData = responseMap
+	proc.ResponseData = responseData
 
 	return nil
 }

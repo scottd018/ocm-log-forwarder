@@ -5,10 +5,7 @@ import (
 	"fmt"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
-)
-
-const (
-	envBackendType = "BACKEND_TYPE"
+	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
 var (
@@ -16,9 +13,24 @@ var (
 )
 
 type Backend interface {
-	Send() error
+	Send(*processor.Processor) error
 	Initialize() error
 	String() string
+}
+
+// Documents stores an array of Documents.
+type Documents struct {
+	Items []Document `json:"items"`
+}
+
+// Document stores the important information from the service log to
+// be shipped to the backend.
+type Document struct {
+	ClusterID string `json:"cluster_id"`
+	Username  string `json:"username"`
+	Severity  string `json:"severity"`
+	Timestamp string `json:"timestamp"`
+	Summary   string `json:"summary"`
 }
 
 func Initialize(backend Backend) error {
@@ -37,7 +49,7 @@ func FromConfig(cfg *config.Config) (Backend, error) {
 	case config.DefaultBackendElasticSearch:
 		backend = &ElasticSearch{}
 	default:
-		return backend, fmt.Errorf("backend from environment [%s=%s] - %w", envBackendType, cfg.Backend, ErrUnknownBackend)
+		return backend, fmt.Errorf("backend from environment [%s=%s] - %w", config.DefaultEnvironmentBackend, cfg.Backend, ErrUnknownBackend)
 	}
 
 	// initialize the backend from the environment

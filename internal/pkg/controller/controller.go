@@ -97,6 +97,12 @@ func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal 
 			}
 
 			controller.Processor.Log.Infof("response data: %s", controller.Processor.ResponseData)
+
+			if err := controller.Backend.Send(controller.Processor); err != nil {
+				errorSignal <- err
+
+				return
+			}
 		}
 	}
 }
