@@ -52,7 +52,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: ocm-log-forwarder
+  name: ocm-log-forwarder-ocm
 subjects:
   - kind: ServiceAccount
     name: ocm-log-forwarder

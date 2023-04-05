@@ -34,19 +34,19 @@ spec:
       containers:
         - name: forwarder
           image: ghcr.io/scottd018/ocm-log-forwarder:unstable
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             # NOTE: present all config options here.  Use these as environment variables 
             #       on the deployment so that changes here result in the app realizing 
             #       those changes by restarting the managed pod.
             - name: OCM_CLUSTER_ID
-              value: cluster-id
+              value: 22tgckqk9c2ff3jd8ve62p0i2st14vrq
             - name: OCM_POLL_INTERVAL_MINUTES
               value: "1"
             - name: BACKEND_TYPE
               value: elasticsearch
             - name: BACKEND_ES_URL
-              value: http://localhost:9200
+              value: https://elasticsearch-es-http.elastic-system.svc.cluster.local:9200
             - name: BACKEND_ES_AUTH_TYPE
               value: basic
             - name: BACKEND_ES_INDEX
