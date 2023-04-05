@@ -16,16 +16,22 @@ const (
 	defaultEnvironmentBackendElasticSearchAuthType        = "BACKEND_ES_AUTH_TYPE"
 	defaultEnvironmentBackendElasticSearchSecretName      = "BACKEND_ES_SECRET_NAME"
 	defaultEnvironmentBackendElasticSearchSecretNamespace = "BACKEND_ES_SECRET_NAMESPACE"
+	defaultEnvironmentBackendElasticIndex                 = "BACKEND_ES_INDEX"
 
 	// default settings
 	DefaultBackendElasticSearch                = "elasticsearch"
 	DefaultBackend                             = DefaultBackendElasticSearch
 	DefaultBackendAuthTypeBasic                = "basic"
 	DefaultBackendElasticSearchAuthType        = DefaultBackendAuthTypeBasic
+	DefaultBackendElasticIndex                 = "ocm_service_logs"
 	defaultBackendElasticSearchURL             = "http://localhost:9200"
 	defaultBackendElasticSearchSecretName      = "elastic-auth"
 	defaultBackendElasticSearchSecretNamespace = "elastic-system"
 )
+
+func GetElasticSearchIndex() string {
+	return utils.FromEnvironment(defaultEnvironmentBackendElasticIndex, DefaultBackendElasticIndex)
+}
 
 func GetElasticSearchURL() string {
 	return utils.FromEnvironment(defaultEnvironmentBackendElasticSearchURL, defaultBackendElasticSearchURL)

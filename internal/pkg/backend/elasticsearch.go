@@ -106,9 +106,8 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 		}
 
 		// create an Elasticsearch request to index the document
-		// TODO: index input
 		request := esapi.IndexRequest{
-			Index: "my_index",
+			Index: config.GetElasticSearchIndex(),
 			Body:  bytes.NewReader(esBody),
 		}
 
