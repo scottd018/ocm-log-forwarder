@@ -12,7 +12,9 @@ const (
 	defaultEnvironmentIntervalMinutes = "OCM_POLL_INTERVAL_MINUTES"
 
 	// default settings
-	defaultIntervalMinutes = 5
+	defaultIntervalMinutes       = 5
+	minPollIntervalMinutes int64 = 1    // 1 minute minimum
+	maxPollIntervalMinutes int64 = 1440 // 1 day maximum
 )
 
 func getPollerInterval() (time.Duration, error) {
@@ -31,5 +33,13 @@ func getPollerInterval() (time.Duration, error) {
 		)
 	}
 
-	return time.Duration(pollerInterval * time.Minute.Nanoseconds()), nil
+	// validate the poller interval is within range
+	switch {
+	case pollerInterval < minPollIntervalMinutes:
+		return 0, fmt.Errorf("poller interval [%v] less than minimum allowed [%v]", pollerInterval, minPollIntervalMinutes)
+	case pollerInterval > maxPollIntervalMinutes:
+		return 0, fmt.Errorf("poller interval [%v] greater than maximum allowed [%v]", pollerInterval, maxPollIntervalMinutes)
+	default:
+		return time.Duration(pollerInterval * time.Minute.Nanoseconds()), nil
+	}
 }

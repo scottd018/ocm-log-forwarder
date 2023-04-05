@@ -10,11 +10,6 @@ import (
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
-const (
-	minPollIntervalMinutes int64 = 1    // 1 minute minimum
-	maxPollIntervalMinutes int64 = 1440 // 1 day maximum
-)
-
 type Controller struct {
 	Config    *config.Config
 	Backend   backend.Backend
@@ -88,16 +83,18 @@ func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal 
 	for {
 		select {
 		case <-loopSignal:
+			// poll ocm for service logs
 			controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
-
 			if err := controller.Poller.Poll(controller.Processor); err != nil {
 				errorSignal <- err
 
 				return
 			}
 
-			controller.Processor.Log.Infof("response data: %s", controller.Processor.ResponseData)
+			// debug the response data
+			controller.Processor.Log.DebugF("response data: %s", controller.Processor.ResponseData)
 
+			// send service logs to the backend
 			if err := controller.Backend.Send(controller.Processor); err != nil {
 				errorSignal <- err
 

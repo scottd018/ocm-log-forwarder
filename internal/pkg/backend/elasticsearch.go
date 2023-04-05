@@ -34,9 +34,6 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 	// serialize data to documents
 	documents := Documents{}
 
-	// collect errors
-	var errors []error
-
 	if err := json.Unmarshal(proc.ResponseData, &documents); err != nil {
 		return fmt.Errorf("unable to unmarshal response data to documents object - %w", err)
 	}
@@ -59,7 +56,7 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 		// serialize document as json
 		esBody, err := json.Marshal(esDoc)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("unable to serialize document - %w", err))
+			proc.Log.ErrorF("error serializing json for message [%s] - %s", esDoc.Message, err)
 
 			continue
 		}
@@ -74,7 +71,7 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 		// send the request to elasticsearch
 		response, err := request.Do(proc.Context, es.Client)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("error in elasticsearch request - %w", err))
+			proc.Log.ErrorF("error sending request to elasticsearch for message [%s] - %s", esDoc.Message, err)
 
 			continue
 		}
@@ -82,24 +79,21 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 
 		// check status code
 		if response.IsError() {
-			errors = append(errors, fmt.Errorf(
+			proc.Log.ErrorF(
 				"error in elasticsearch request with status code [%d] and message [%s] - %w",
 				response.StatusCode,
 				response.Status(),
-				err),
+				err,
 			)
 
 			continue
 		}
 
+		proc.Log.Info("wtf")
+
 		// if we have made it this far, we are successful and can append the document to the list
 		// of documents
 		es.Request.Documents = append(es.Request.Documents, esDoc)
-	}
-
-	// if we found any errors, return them
-	if len(errors) > 0 {
-		return fmt.Errorf("errors: %v", errors)
 	}
 
 	return nil

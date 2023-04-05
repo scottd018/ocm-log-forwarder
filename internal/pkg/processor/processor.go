@@ -23,6 +23,10 @@ func NewProcessor(cfg *config.Config) (*Processor, error) {
 		return &Processor{}, fmt.Errorf("unable to setup logger - %w", err)
 	}
 
+	if cfg.Debug {
+		log.SetLogLevel(logger.DebugLevel)
+	}
+
 	return &Processor{
 		Log:     log,
 		Config:  cfg,
