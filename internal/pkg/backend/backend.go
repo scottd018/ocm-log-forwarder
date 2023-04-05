@@ -31,6 +31,7 @@ type Document struct {
 	Severity  string `json:"severity"`
 	Timestamp string `json:"timestamp"`
 	Summary   string `json:"summary"`
+	EventID   string `json:"event_stream_id"`
 }
 
 func Initialize(backend Backend, proc *processor.Processor) error {

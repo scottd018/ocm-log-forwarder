@@ -31,6 +31,7 @@ type ElasticSearchDocument struct {
 	Severity  string `json:"severity"`
 	Message   string `json:"message"`
 	Timestamp string `json:"@timestamp"`
+	EventID   string `json:"event_stream_id"`
 }
 
 func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
@@ -78,6 +79,8 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 	// serialize data to documents
 	documents := Documents{}
 
+	index := config.GetElasticSearchIndex()
+
 	if err := json.Unmarshal(proc.ResponseData, &documents); err != nil {
 		return fmt.Errorf("unable to unmarshal response data to documents object - %w", err)
 	}
@@ -90,6 +93,7 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 			Severity:  documents.Items[i].Severity,
 			Message:   documents.Items[i].Summary,
 			Timestamp: documents.Items[i].Timestamp,
+			EventID:   documents.Items[i].EventID,
 		}
 
 		// skip processing if this has been sent
@@ -107,11 +111,12 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 
 		// create an Elasticsearch request to index the document
 		request := esapi.IndexRequest{
-			Index: config.GetElasticSearchIndex(),
+			Index: index,
 			Body:  bytes.NewReader(esBody),
 		}
 
 		// send the request to elasticsearch
+		proc.Log.Infof("sending items to elasticsearch: cluster=%s, event_stream_id=%s, index=%s", proc.Config.ClusterID, esDoc.EventID, index)
 		response, err := request.Do(proc.Context, es.Client)
 		if err != nil {
 			proc.Log.ErrorF("error sending request to elasticsearch for message [%s] - %s", esDoc.Message, err)
