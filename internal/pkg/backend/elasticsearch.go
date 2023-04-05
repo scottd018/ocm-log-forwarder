@@ -154,8 +154,6 @@ func (req *ElasticSearchRequest) Sent(document ElasticSearchDocument) bool {
 		}
 	}
 
-	req.Documents = append(req.Documents, document)
-
 	return false
 }
 
