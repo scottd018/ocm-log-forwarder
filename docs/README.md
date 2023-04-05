@@ -1,9 +1,13 @@
-# OCM-LOG-FORWARDER
+# ocm-log-forwarder
 
 This project is not supported by Red Hat.  It was a thought experiment on how to take Service Logs from 
 [OpenShift Cluster Manager](https://docs.openshift.com/rosa/ocm/ocm-overview.html) and send them to a 
 backend system for audit purposes.  It is specifically tested with ROSA OpenShift clusters that are 
 registered with OCM.
+
+The below diagram shows a visualization of what this project is intended to do:
+
+![ocm-log-forwarder](images/ocm-log-forwarder.png)
 
 ## Walkthrough
 
