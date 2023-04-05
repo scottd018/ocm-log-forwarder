@@ -9,7 +9,7 @@ const (
 	defaultEnvironmentSecretNamespace = "OCM_SECRET_NAMESPACE"
 
 	defaultSecretName      = "ocm-token"
-	defaultSecretNamespace = "elastic-system"
+	defaultSecretNamespace = "ocm-log-forwarder"
 )
 
 func getSecretName() string {

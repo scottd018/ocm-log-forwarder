@@ -1,0 +1,71 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: ocm-log-forwarder
+  namespace: ocm-log-forwarder
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ocm-log-forwarder-ocm
+  namespace: ocm-log-forwarder
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - watch
+      - list
+    resourceNames:
+      # NOTE: this secret must pre-exist for this operator to work.  The key should contain the 
+      #       string value of the JSON OCM API key.
+      - ocm-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ocm-log-forwarder-elastic
+  namespace: ocm-log-forwarder
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - watch
+      - list
+    resourceNames:
+      # NOTE: this secret must pre-exist for this operator to work.  The key should contain the 
+      #       string value of the JSON OCM API key.
+      - elastic-auth
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ocm-log-forwarder
+  namespace: ocm-log-forwarder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ocm-log-forwarder
+subjects:
+  - kind: ServiceAccount
+    name: ocm-log-forwarder
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ocm-log-forwarder-elastic
+  namespace: ocm-log-forwarder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ocm-log-forwarder-elastic
+subjects:
+  - kind: ServiceAccount
+    name: ocm-log-forwarder

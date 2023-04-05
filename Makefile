@@ -12,8 +12,14 @@ build:
 # image
 IMAGE_REPO ?= ghcr.io/scottd018/ocm-log-forwarder
 IMAGE_TAG ?= unstable
-image:
+image-build:
 	@docker build . -t $(IMAGE_REPO):$(IMAGE_TAG)
+
+image-push:
+	@docker push $(IMAGE_REPO):$(IMAGE_TAG)
+
+image-pull:
+	@docker pull $(IMAGE_REPO):$(IMAGE_TAG)
 
 # tests
 DEBUG ?= true

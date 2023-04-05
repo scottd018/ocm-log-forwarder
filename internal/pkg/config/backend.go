@@ -26,7 +26,7 @@ const (
 	DefaultBackendElasticIndex                 = "ocm_service_logs"
 	defaultBackendElasticSearchURL             = "http://localhost:9200"
 	defaultBackendElasticSearchSecretName      = "elastic-auth"
-	defaultBackendElasticSearchSecretNamespace = "elastic-system"
+	defaultBackendElasticSearchSecretNamespace = "ocm-log-forwarder"
 )
 
 func GetElasticSearchIndex() string {
