@@ -43,13 +43,13 @@ test-image:
 # demo elasticsearch
 #
 es-operator:
-	@oc apply -f deploy/operator.yaml
+	@oc apply -f deploy/support/operator.yaml
 
 es-namespace:
-	@oc apply -f deploy/namespace.yaml
+	@oc apply -f deploy/support/namespace.yaml
 
 es-components:
-	@oc apply -f deploy/elasticsearch.yaml
+	@oc apply -f deploy/support/elasticsearch.yaml
 
 OCM_TOKEN_PATH ?= /Users/dscott/.aws/ocm.json
 ocm-secret:
