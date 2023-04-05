@@ -27,9 +27,9 @@ CLUSTER_NAME ?= dscott
 test-binary:
 	@OCM_CLUSTER_ID=`rosa describe cluster -c $(CLUSTER_NAME) | grep '^ID:' | awk '{print $$NF}'` \
 		OCM_POLL_INTERVAL_MINUTES=1 \
-		BACKEND_ES_SECRET_NAME="elasticsearch-es-elastic-user" \
-		BACKEND_ES_SECRET_NAMESPACE="elastic-system" \
-		BACKEND_ES_URL="https://$$(oc -n $${BACKEND_ES_SECRET_NAMESPACE} get route elasticsearch --no-headers | awk '{print $$2}')" \
+		BACKEND_ES_SECRET_NAME="elastic-auth" \
+		BACKEND_ES_SECRET_NAMESPACE="ocm-log-forwarder" \
+		BACKEND_ES_URL="https://$$(oc -n elastic-system get route elasticsearch --no-headers | awk '{print $$2}')" \
 		DEBUG=$(DEBUG) \
 		go run main.go
 
@@ -37,9 +37,9 @@ test-image:
 	@docker run \
 		-e OCM_CLUSTER_ID=`rosa describe cluster -c $(CLUSTER_NAME) | grep '^ID:' | awk '{print $$NF}'` \
 		-e OCM_POLL_INTERVAL_MINUTES=1 \
-		-e BACKEND_ES_SECRET_NAME="elasticsearch-es-elastic-user" \
-		-e BACKEND_ES_SECRET_NAMESPACE="elastic-system" \
-		-e BACKEND_ES_URL="https://$$(oc -n $${BACKEND_ES_SECRET_NAMESPACE} get route elasticsearch --no-headers | awk '{print $$2}')" \
+		-e BACKEND_ES_SECRET_NAME="elastic-auth" \
+		-e BACKEND_ES_SECRET_NAMESPACE="ocm-log-forwarder" \
+		-e BACKEND_ES_URL="https://$$(oc -n elastic-system get route elasticsearch --no-headers | awk '{print $$2}')" \
 		-e DEBUG=$(DEBUG) \
 		-e KUBECONFIG=/kube-config \
 		-v /Users/dscott/.kube/config:/kube-config \
@@ -60,4 +60,4 @@ es-components:
 OCM_TOKEN_PATH ?= /Users/dscott/.aws/ocm.json
 ocm-secret:
 	@OCM_CLUSTER_ID=`rosa describe cluster -c $(CLUSTER_NAME) | grep '^ID:' | awk '{print $$NF}'` \
-		oc -n elastic-system create secret generic ocm-token --from-file=$$OCM_CLUSTER_ID=$(OCM_TOKEN_PATH)
+		oc -n ocm-log-forwarder create secret generic ocm-token --from-file=$$OCM_CLUSTER_ID=$(OCM_TOKEN_PATH)
