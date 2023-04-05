@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/controller"
@@ -22,6 +23,8 @@ func main() {
 
 	// run the controller
 	if err := controller.Run(); err != nil {
-		panic(fmt.Errorf("error in control loop - %w", err))
+		controller.Processor.Log.ErrorF("error in control loop - %w", err)
+
+		os.Exit(1)
 	}
 }
