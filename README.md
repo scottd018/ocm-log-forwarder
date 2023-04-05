@@ -61,7 +61,7 @@ export BACKEND_ES_SECRET_NAMESPACE="elastic-system"
 export BACKEND_ES_URL="https://$(oc -n ${BACKEND_ES_SECRET_NAMESPACE} get route elasticsearch --no-headers | awk '{print $2}')"
 
 # lower the poll interval from default to see things happen quicker
-export OCM_POLL_INTERVAL_MINUTES=1
+export c
 ```
 
 8. Run the test:
