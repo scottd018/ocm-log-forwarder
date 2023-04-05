@@ -14,7 +14,7 @@ var (
 
 type Backend interface {
 	Send(*processor.Processor) error
-	Initialize() error
+	Initialize(*processor.Processor) error
 	String() string
 }
 
@@ -33,27 +33,27 @@ type Document struct {
 	Summary   string `json:"summary"`
 }
 
-func Initialize(backend Backend) error {
+func Initialize(backend Backend, proc *processor.Processor) error {
 	switch obj := backend.(type) {
 	case *ElasticSearch:
-		return obj.Initialize()
+		return obj.Initialize(proc)
 	default:
 		return fmt.Errorf("backend [%T] - %w", obj, ErrUnknownBackend)
 	}
 }
 
-func FromConfig(cfg *config.Config) (Backend, error) {
+func FromConfig(proc *processor.Processor) (Backend, error) {
 	var backend Backend
 
-	switch cfg.Backend {
+	switch proc.Config.Backend {
 	case config.DefaultBackendElasticSearch:
 		backend = &ElasticSearch{}
 	default:
-		return backend, fmt.Errorf("backend from environment [%s=%s] - %w", config.DefaultEnvironmentBackend, cfg.Backend, ErrUnknownBackend)
+		return backend, fmt.Errorf("backend from environment [%s=%s] - %w", config.DefaultEnvironmentBackend, proc.Config.Backend, ErrUnknownBackend)
 	}
 
 	// initialize the backend from the environment
-	if err := backend.Initialize(); err != nil {
+	if err := backend.Initialize(proc); err != nil {
 		return backend, fmt.Errorf("unable to initialize backend - %w", err)
 	}
 

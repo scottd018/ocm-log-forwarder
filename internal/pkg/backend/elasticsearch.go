@@ -2,9 +2,12 @@ package backend
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
+	"time"
 
 	elasticsearch "github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -28,6 +31,47 @@ type ElasticSearchDocument struct {
 	Severity  string `json:"severity"`
 	Message   string `json:"message"`
 	Timestamp string `json:"@timestamp"`
+}
+
+func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
+	es.Request = &ElasticSearchRequest{}
+
+	var esConfig elasticsearch.Config
+
+	// set the authentication parameters
+	switch authType := config.GetElasticSearchAuthType(); {
+	case authType == config.DefaultBackendAuthTypeBasic:
+		username, password, err := config.GetElasticSearchAuthTypeBasic(proc.KubeClient, proc.Context)
+		if err != nil {
+			return fmt.Errorf("unable to configure basic auth type - %w", err)
+		}
+
+		// create the basic auth connection config
+		esConfig = elasticsearch.Config{
+			Addresses: []string{config.GetElasticSearchURL()},
+			Username:  username,
+			Password:  password,
+			Transport: &http.Transport{
+				MaxIdleConnsPerHost:   10,
+				ResponseHeaderTimeout: time.Second,
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	default:
+		return fmt.Errorf("unknown auth type [%s]", authType)
+	}
+
+	// create the elasticsearch client
+	client, err := elasticsearch.NewClient(esConfig)
+	if err != nil {
+		fmt.Println("Error creating Elasticsearch client:", err)
+		return fmt.Errorf("unable to configure elasticsearch client - %w", err)
+	}
+	es.Client = client
+
+	return nil
 }
 
 func (es *ElasticSearch) Send(proc *processor.Processor) error {
@@ -89,29 +133,12 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 			continue
 		}
 
-		proc.Log.Info("wtf")
-
 		// if we have made it this far, we are successful and can append the document to the list
 		// of documents
 		es.Request.Documents = append(es.Request.Documents, esDoc)
 	}
 
 	return nil
-}
-
-func (es *ElasticSearch) Initialize() error {
-	client, err := elasticsearch.NewDefaultClient()
-	if err != nil {
-		return fmt.Errorf("unable to initialize the elasticsearch client - %w", err)
-	}
-	es.Client = client
-	es.Request = &ElasticSearchRequest{}
-
-	return nil
-}
-
-func (es *ElasticSearch) String() string {
-	return config.DefaultBackendElasticSearch
 }
 
 func (req *ElasticSearchRequest) Sent(document ElasticSearchDocument) bool {
@@ -125,4 +152,8 @@ func (req *ElasticSearchRequest) Sent(document ElasticSearchDocument) bool {
 	req.Documents = append(req.Documents, document)
 
 	return false
+}
+
+func (es *ElasticSearch) String() string {
+	return config.DefaultBackendElasticSearch
 }

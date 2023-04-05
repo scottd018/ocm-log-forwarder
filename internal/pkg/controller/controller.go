@@ -19,21 +19,21 @@ type Controller struct {
 
 func NewController(cfg *config.Config) (*Controller, error) {
 	// initialize the processor
-	processor, err := processor.NewProcessor(cfg)
+	proc, err := processor.NewProcessor(cfg)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize processor - %w", err)
 	}
 
 	// initialize the backend
-	processor.Log.Infof("initializing backend: cluster=[%s], type=[%s]", cfg.ClusterID, cfg.Backend)
-	backend, err := backend.FromConfig(cfg)
+	proc.Log.Infof("initializing backend: cluster=[%s], type=[%s]", cfg.ClusterID, cfg.Backend)
+	backend, err := backend.FromConfig(proc)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize backend - %w", err)
 	}
 
 	// create the poller
-	processor.Log.Infof("initializing poller: cluster=[%s], interval=[%v minutes]", cfg.ClusterID, cfg.PollerInterval.Minutes())
-	poller, err := poller.NewPoller(processor)
+	proc.Log.Infof("initializing poller: cluster=[%s], interval=[%v minutes]", cfg.ClusterID, cfg.PollerInterval.Minutes())
+	poller, err := poller.NewPoller(proc)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize poller - %w", err)
 	}
@@ -42,7 +42,7 @@ func NewController(cfg *config.Config) (*Controller, error) {
 		Config:    cfg,
 		Backend:   backend,
 		Poller:    poller,
-		Processor: processor,
+		Processor: proc,
 	}, nil
 }
 

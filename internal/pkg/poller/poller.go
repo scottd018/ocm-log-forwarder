@@ -14,12 +14,7 @@ type Poller struct {
 }
 
 func NewPoller(proc *processor.Processor) (*Poller, error) {
-	token, err := NewToken(proc)
-	if err != nil {
-		return &Poller{}, fmt.Errorf("unable to create token object for cluster [%s] - %w", proc.Config.ClusterID, err)
-	}
-
-	return &Poller{Token: token}, nil
+	return &Poller{Token: &token{}}, nil
 }
 
 func (poller *Poller) Poll(proc *processor.Processor) error {

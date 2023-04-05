@@ -7,16 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"time"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/utils"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -27,47 +22,14 @@ const (
 type token struct {
 	BearerToken string
 	ExpireTime  *time.Time
-	Client      *kubernetes.Clientset
 	Endpoint    string
-}
-
-func NewToken(proc *processor.Processor) (*token, error) {
-	proc.Log.InfoF("initializing kubernetes cluster config: cluster=[%s]", proc.Config.ClusterID)
-	config, err := rest.InClusterConfig()
-	if err == nil {
-		// create the clientset for the config
-		client, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return &token{}, fmt.Errorf("unable to create kubernetes client from in cluster - %w", err)
-		}
-
-		return &token{Client: client}, nil
-	}
-
-	proc.Log.WarningF("unable to initialize cluster config: cluster=[%s], attempting file initialization", proc.Config.ClusterID)
-
-	kubeConfig := kubeConfigPath()
-
-	proc.Log.InfoF("initializing kubernetes file config: cluster=[%s], file=[%s]", proc.Config.ClusterID, kubeConfig)
-	config, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
-	if err == nil {
-		// create the clientset for the config
-		client, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return &token{}, fmt.Errorf("unable to create kubernetes client from kubeconfig - %w", err)
-		}
-
-		return &token{Client: client}, nil
-	}
-
-	return &token{}, fmt.Errorf("unable to create kubernetes client - %w", err)
 }
 
 func (token *token) Refresh(proc *processor.Processor) error {
 	expireTime := time.Now().Add(time.Duration(defaultExpiryMinutes * time.Minute.Nanoseconds()))
 
 	proc.Log.Infof("retrieving cluster secret: cluster=[%s], secret=[%s]", proc.Config.ClusterID, proc.Config.SecretName)
-	secret, err := token.getSecret(proc)
+	secret, err := utils.GetKubernetesSecret(proc.KubeClient, proc.Context, proc.Config.SecretName, proc.Config.SecretNamespace)
 	if err != nil {
 		return fmt.Errorf("unable to retrieve kubernetes secret - %w", err)
 	}
@@ -93,19 +55,6 @@ func (token *token) Valid() bool {
 	default:
 		return token.ExpireTime.After(time.Now())
 	}
-}
-
-func (token *token) getSecret(proc *processor.Processor) (v1.Secret, error) {
-	secret, err := token.Client.CoreV1().Secrets(proc.Config.SecretNamespace).Get(proc.Context, proc.Config.SecretName, metav1.GetOptions{})
-	if err != nil {
-		return v1.Secret{}, fmt.Errorf("unable to retrieve secret [%s/%s] from cluster - %w", proc.Config.SecretNamespace, proc.Config.SecretName, err)
-	}
-
-	if secret == nil {
-		return v1.Secret{}, fmt.Errorf("unable to retrieve secret [%s/%s] from cluster - %w", proc.Config.SecretNamespace, proc.Config.SecretName, err)
-	}
-
-	return *secret, nil
 }
 
 func (token *token) getBearerToken(proc *processor.Processor, secret v1.Secret) error {
@@ -168,12 +117,4 @@ func (token *token) getBearerToken(proc *processor.Processor, secret v1.Secret) 
 	token.BearerToken = bearerToken.(string)
 
 	return nil
-}
-
-func homeDir() string {
-	return utils.FromEnvironment("HOME", "~")
-}
-
-func kubeConfigPath() string {
-	return utils.FromEnvironment("KUBECONFIG", filepath.Join(homeDir(), ".kube", "config"))
 }
