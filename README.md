@@ -81,6 +81,10 @@ go run main.go
 #9 2023-04-05 10:44:54 token.go:31 ▶ INF retrieving cluster secret: cluster=[cluster-id], secret=[ocm-token]
 #10 2023-04-05 10:44:54 token.go:37 ▶ INF retrieving bearer token: cluster=[cluster-id]
 #11 2023-04-05 10:44:54 poller.go:34 ▶ INF retrieving service logs: cluster=[cluster-id]
+#12 2023-04-05 10:44:54 elasticsearch.go:119 ▶ INF sending items to elasticsearch: cluster=cluster-id, event_stream_id=event-stream-id, index=ocm_service_logs
+#13 2023-04-05 10:44:54 elasticsearch.go:119 ▶ INF sending items to elasticsearch: cluster=cluster-id, event_stream_id=event-stream-id, index=ocm_service_logs
+#14 2023-04-05 10:44:54 elasticsearch.go:119 ▶ INF sending items to elasticsearch: cluster=cluster-id, event_stream_id=event-stream-id, index=ocm_service_logs
+#15 2023-04-05 10:44:54 elasticsearch.go:119 ▶ INF sending items to elasticsearch: cluster=cluster-id, event_stream_id=event-stream-id, index=ocm_service_logs
 ...
 ```
 
