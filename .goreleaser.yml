@@ -54,6 +54,7 @@ dockers:
       - "go.sum"
       - "main.go"
       - "internal/"
+      - "Makefile"
 
 # NOTE: earlier versions of goreleaser seemed to automatically include the docker images
 #       that were uploaded.  in the case that this behavior regresses, this may cause
