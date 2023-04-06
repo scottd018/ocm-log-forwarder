@@ -1,0 +1,65 @@
+---
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ocm-log-forwarder
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    main: ./
+    binary: forwarder
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs(\(.*\))?:'
+      - '^test(\(.*\))?:'
+      - '^ci(\(.*\))?:'
+      - '^chore(\(.*\))?:'
+      - '^build(\(.*\))?:'
+
+dockers:
+  - image_templates:
+      - 'ghcr.io/scottd018/ocm-log-forwarder:v{{ .Version }}'
+      - 'ghcr.io/scottd018/ocm-log-forwarder:latest'
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.name={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source={{ .GitURL }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+      - "--label=VERSION={{ .Version }}"
+      - "--platform=linux/amd64"
+    # NOTE: we must explicitly include the files we need to copy in to the 
+    #       docker image, as goreleaser expects to only be copying its own
+    #       binary into the image.  because we do not build and release the
+    #       binary in an earlier step, this is necessary.
+    extra_files:
+      - "go.mod"
+      - "go.sum"
+      - "main.go"
+      - "internal/"
+
+# NOTE: earlier versions of goreleaser seemed to automatically include the docker images
+#       that were uploaded.  in the case that this behavior regresses, this may cause
+#       duplication in the release notes.
+release:
+  footer: |
+    ## Docker Images
+
+    * `docker pull ghcr.io/scottd018/ocm-log-forwarder:v{{ .Version }}`

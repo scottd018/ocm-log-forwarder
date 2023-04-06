@@ -49,15 +49,14 @@ test-image:
 # demo elasticsearch
 #
 es-operator:
-	@oc apply -f deploy/support/operator.yaml
+	@oc apply -f deploy/operator.yaml
 
 es-namespace:
-	@oc apply -f deploy/support/namespace.yaml
+	@oc apply -f deploy/namespace.yaml
 
 es-components:
-	@oc apply -f deploy/support/elasticsearch.yaml
+	@oc apply -f deploy/elasticsearch.yaml
 
 OCM_TOKEN_PATH ?= /Users/dscott/.aws/ocm.json
 ocm-secret:
-	@OCM_CLUSTER_ID=`rosa describe cluster -c $(CLUSTER_NAME) | grep '^ID:' | awk '{print $$NF}'` \
-		oc -n ocm-log-forwarder create secret generic ocm-token --from-file=$$OCM_CLUSTER_ID=$(OCM_TOKEN_PATH)
+	@oc -n ocm-log-forwarder create secret generic ocm-token --from-file=`rosa describe cluster -c $(CLUSTER_NAME) | grep '^ID:' | awk '{print $$NF}'`=$(OCM_TOKEN_PATH)
