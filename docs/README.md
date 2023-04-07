@@ -56,7 +56,7 @@ sure to substitute the appropriate version for the operator in the below command
 available versions).
 
 ```
-VERSION=v0.1.0
+VERSION=v0.1.1
 oc apply -f https://github.com/scottd018/ocm-log-forwarder-operator/releases/download/${VERSION}/deploy.yaml
 ```
 
