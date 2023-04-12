@@ -1,23 +1,24 @@
 package backend
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
-	"time"
 
-	elasticsearch "github.com/elastic/go-elasticsearch/v8"
-	"github.com/elastic/go-elasticsearch/v8/esapi"
+	"github.com/olivere/elastic/v7"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
+const (
+	elasticSearchDocType = "_doc"
+)
+
 type ElasticSearch struct {
-	Client  *elasticsearch.Client
+	Client  *elastic.Client
 	Request *ElasticSearchRequest
 }
 
@@ -35,11 +36,9 @@ type ElasticSearchDocument struct {
 }
 
 func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
-	es.Request = &ElasticSearchRequest{}
+	var client *elastic.Client
 
-	var esConfig elasticsearch.Config
-
-	// set the authentication parameters
+	// create the client based on the authentication type
 	switch authType := config.GetElasticSearchAuthType(); {
 	case authType == config.DefaultBackendAuthTypeBasic:
 		username, password, err := config.GetElasticSearchAuthTypeBasic(proc.KubeClient, proc.Context)
@@ -47,30 +46,31 @@ func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
 			return fmt.Errorf("unable to configure basic auth type - %w", err)
 		}
 
-		// create the basic auth connection config
-		esConfig = elasticsearch.Config{
-			Addresses: []string{config.GetElasticSearchURL()},
-			Username:  username,
-			Password:  password,
-			Transport: &http.Transport{
-				MaxIdleConnsPerHost:   10,
-				ResponseHeaderTimeout: time.Second,
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
+		client, err = elastic.NewClient(
+			elastic.SetSniff(false),
+			elastic.SetURL(config.GetElasticSearchURL()),
+			elastic.SetBasicAuth(username, password),
+			elastic.SetHttpClient(
+				&http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					},
 				},
-			},
+			),
+		)
+
+		if err != nil {
+			return fmt.Errorf("unable to create elasticsearch client - %w", err)
 		}
 	default:
-		return fmt.Errorf("unknown auth type [%s]", authType)
+		return fmt.Errorf("auth type [%s] - %w", authType, config.ErrBackendAuthUnknown)
 	}
 
-	// create the elasticsearch client
-	client, err := elasticsearch.NewClient(esConfig)
-	if err != nil {
-		fmt.Println("Error creating Elasticsearch client:", err)
-		return fmt.Errorf("unable to configure elasticsearch client - %w", err)
-	}
+	// store the client and request on the elasticsearch object
 	es.Client = client
+	es.Request = &ElasticSearchRequest{}
 
 	return nil
 }
@@ -78,12 +78,15 @@ func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
 func (es *ElasticSearch) Send(proc *processor.Processor) error {
 	// serialize data to documents
 	documents := Documents{}
-
-	index := config.GetElasticSearchIndex()
-
 	if err := json.Unmarshal(proc.ResponseData, &documents); err != nil {
 		return fmt.Errorf("unable to unmarshal response data to documents object - %w", err)
 	}
+
+	index := config.GetElasticSearchIndex()
+
+	bulkRequest := es.Client.Bulk().Index(index).Type(elasticSearchDocType)
+
+	var documentCount int
 
 	for i := range documents.Items {
 		// create the elasticsearch document from the generic backend document
@@ -97,7 +100,7 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 		}
 
 		// skip processing if this has been sent
-		if es.Request.Sent(esDoc) {
+		if es.Request.Sent(&esDoc) {
 			continue
 		}
 
@@ -109,44 +112,54 @@ func (es *ElasticSearch) Send(proc *processor.Processor) error {
 			continue
 		}
 
-		// create an Elasticsearch request to index the document
-		request := esapi.IndexRequest{
-			Index:      index,
-			DocumentID: esDoc.EventID,
-			Body:       bytes.NewReader(esBody),
-		}
-
-		// send the request to elasticsearch
-		proc.Log.Infof("sending items to elasticsearch: cluster=%s, event_stream_id=%s, index=%s", proc.Config.ClusterID, esDoc.EventID, index)
-		response, err := request.Do(proc.Context, es.Client)
-		if err != nil {
-			proc.Log.ErrorF("error sending request to elasticsearch for message [%s] - %s", esDoc.Message, err)
-
-			continue
-		}
-		defer response.Body.Close()
-
-		// check status code
-		if response.IsError() {
-			proc.Log.ErrorF(
-				"error in elasticsearch request with status code [%d] and message [%s] - %w",
-				response.StatusCode,
-				response.Status(),
-				err,
-			)
-
-			continue
-		}
+		// add the document to the bulk request
+		proc.Log.Infof(
+			"adding document to elasticsearch bulk request: cluster=%s, event_stream_id=%s, index=%s",
+			proc.Config.ClusterID,
+			esDoc.EventID,
+			index,
+		)
+		bulkRequest.Add(elastic.NewBulkIndexRequest().Id(esDoc.EventID).Doc(esBody))
 
 		// if we have made it this far, we are successful and can append the document to the list
-		// of documents
+		// of documents and increment the document count to notify the logger how many
+		// documents we are sending as part of the request
+		documentCount++
+
 		es.Request.Documents = append(es.Request.Documents, esDoc)
+	}
+
+	// return if we have no documents to send as part of the request
+	if documentCount == 0 {
+		return nil
+	}
+
+	// send the bulk request
+	proc.Log.Infof("sending [%d] documents to elasticsearch: cluster=%s, index=%s", documentCount, proc.Config.ClusterID, index)
+	response, err := bulkRequest.Do(proc.Context)
+	if err != nil {
+		return fmt.Errorf("error sending bulk request to elasticsearch - %s", err)
+	}
+
+	// check for failures in the responses
+	if response.Errors {
+		for _, item := range response.Items {
+			for _, result := range item {
+				if result.Status != http.StatusOK {
+					proc.Log.ErrorF(
+						"error in elasticsearch request: status_code=%d, message=%s",
+						result.Status,
+						result.Result,
+					)
+				}
+			}
+		}
 	}
 
 	return nil
 }
 
-func (req *ElasticSearchRequest) Sent(document ElasticSearchDocument) bool {
+func (req *ElasticSearchRequest) Sent(document *ElasticSearchDocument) bool {
 	for i := range req.Documents {
 		// skip adding a document to the request if we have already added it
 		if reflect.DeepEqual(req.Documents[i], document) {

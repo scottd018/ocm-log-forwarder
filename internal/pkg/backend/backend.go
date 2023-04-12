@@ -1,15 +1,10 @@
 package backend
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
-)
-
-var (
-	ErrUnknownBackend = errors.New("unknown backend type")
 )
 
 type Backend interface {
@@ -39,7 +34,7 @@ func Initialize(backend Backend, proc *processor.Processor) error {
 	case *ElasticSearch:
 		return obj.Initialize(proc)
 	default:
-		return fmt.Errorf("backend [%T] - %w", obj, ErrUnknownBackend)
+		return fmt.Errorf("backend [%T] - %w", obj, config.ErrBackendUnknown)
 	}
 }
 
@@ -50,7 +45,12 @@ func FromConfig(proc *processor.Processor) (Backend, error) {
 	case config.DefaultBackendElasticSearch:
 		backend = &ElasticSearch{}
 	default:
-		return backend, fmt.Errorf("backend from environment [%s=%s] - %w", config.DefaultEnvironmentBackend, proc.Config.Backend, ErrUnknownBackend)
+		return backend, fmt.Errorf(
+			"backend from environment [%s=%s] - %w",
+			config.DefaultEnvironmentBackend,
+			proc.Config.Backend,
+			config.ErrBackendUnknown,
+		)
 	}
 
 	// initialize the backend from the environment
