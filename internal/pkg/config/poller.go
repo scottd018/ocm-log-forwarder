@@ -25,7 +25,7 @@ const (
 func getPollerInterval() (time.Duration, error) {
 	pollerIntervalMinutes := os.Getenv(defaultEnvironmentIntervalMinutes)
 	if pollerIntervalMinutes == "" {
-		return defaultIntervalMinutes, nil
+		return (defaultIntervalMinutes * time.Minute), nil
 	}
 
 	pollerInterval, err := strconv.ParseInt(pollerIntervalMinutes, 10, 64)
