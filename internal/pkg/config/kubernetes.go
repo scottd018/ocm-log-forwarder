@@ -4,6 +4,10 @@ import (
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/utils"
 )
 
+// NOTE: we are not storing credentials rather pointers to credentials here so
+// we do not need to lint this.
+//
+//nolint:gosec
 const (
 	defaultEnvironmentSecretName      = "OCM_SECRET_NAME"
 	defaultEnvironmentSecretNamespace = "OCM_SECRET_NAMESPACE"

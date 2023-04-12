@@ -1,17 +1,22 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 )
 
+var (
+	ErrPollerIntervalRange = errors.New("poller interval out of range")
+)
+
 const (
-	// environment variables
+	// Default Environment Variables.
 	defaultEnvironmentIntervalMinutes = "OCM_POLL_INTERVAL_MINUTES"
 
-	// default settings
+	// Default Settings for Environment Variables.
 	defaultIntervalMinutes       = 5
 	minPollIntervalMinutes int64 = 1    // 1 minute minimum
 	maxPollIntervalMinutes int64 = 1440 // 1 day maximum
@@ -36,9 +41,19 @@ func getPollerInterval() (time.Duration, error) {
 	// validate the poller interval is within range
 	switch {
 	case pollerInterval < minPollIntervalMinutes:
-		return 0, fmt.Errorf("poller interval [%v] less than minimum allowed [%v]", pollerInterval, minPollIntervalMinutes)
+		return 0, fmt.Errorf(
+			"poller interval [%v] less than minimum allowed [%v] - %w",
+			pollerInterval,
+			minPollIntervalMinutes,
+			ErrPollerIntervalRange,
+		)
 	case pollerInterval > maxPollIntervalMinutes:
-		return 0, fmt.Errorf("poller interval [%v] greater than maximum allowed [%v]", pollerInterval, maxPollIntervalMinutes)
+		return 0, fmt.Errorf(
+			"poller interval [%v] greater than maximum allowed [%v] - %w",
+			pollerInterval,
+			maxPollIntervalMinutes,
+			ErrPollerIntervalRange,
+		)
 	default:
 		return time.Duration(pollerInterval * time.Minute.Nanoseconds()), nil
 	}

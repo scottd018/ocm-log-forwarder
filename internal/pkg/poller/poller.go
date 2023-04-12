@@ -2,7 +2,7 @@ package poller
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -19,12 +19,13 @@ func NewPoller(proc *processor.Processor) (*Poller, error) {
 
 func (poller *Poller) Poll(proc *processor.Processor) error {
 	if poller.Token == nil {
-		return fmt.Errorf("missing token from poller object")
+		return fmt.Errorf("missing token from poller object - %w", ErrTokenInvalid)
 	}
 
 	// refresh the token if it is invalid
 	if !poller.Token.Valid() {
 		proc.Log.Infof("refreshing token: cluster=[%s]", proc.Config.ClusterID)
+
 		if err := poller.Token.Refresh(proc); err != nil {
 			return fmt.Errorf("unable to refresh token - %w", err)
 		}
@@ -50,13 +51,15 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 	if err != nil {
 		return fmt.Errorf("unable to create base url object - %w", err)
 	}
+
 	requestURL.RawQuery = payload.Encode()
 
 	// create the request
-	request, err := http.NewRequest("GET", requestURL.String(), nil)
+	request, err := http.NewRequest("GET", requestURL.String(), http.NoBody)
 	if err != nil {
 		return fmt.Errorf("unable to create http request - %w", err)
 	}
+
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", poller.Token.BearerToken))
 
 	// send the request
@@ -69,11 +72,16 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 
 	// check the response code
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("error in http response with code - %d - %s", response.StatusCode, response.Status)
+		return fmt.Errorf(
+			"invalid response code [%d]; message [%s] - %w",
+			response.StatusCode,
+			response.Status,
+			ErrResponseInvalid,
+		)
 	}
 
 	// retrieve the access token from the response
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return fmt.Errorf("unable to read response body - %w", err)
 	}

@@ -26,22 +26,22 @@ func NewController(cfg *config.Config) (*Controller, error) {
 
 	// initialize the backend
 	proc.Log.Infof("initializing backend: cluster=[%s], type=[%s]", cfg.ClusterID, cfg.Backend)
-	backend, err := backend.FromConfig(proc)
+	logBackend, err := backend.FromConfig(proc)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize backend - %w", err)
 	}
 
 	// create the poller
 	proc.Log.Infof("initializing poller: cluster=[%s], interval=[%v minutes]", cfg.ClusterID, cfg.PollerInterval.Minutes())
-	poller, err := poller.NewPoller(proc)
+	ocmPoller, err := poller.NewPoller(proc)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize poller - %w", err)
 	}
 
 	return &Controller{
 		Config:    cfg,
-		Backend:   backend,
-		Poller:    poller,
+		Backend:   logBackend,
+		Poller:    ocmPoller,
 		Processor: proc,
 	}, nil
 }
@@ -73,33 +73,28 @@ func (controller *Controller) Run() error {
 			controller.Processor.Log.Error(err.Error())
 
 			return err
-		default:
-			break
 		}
 	}
 }
 
 func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal chan<- error) {
-	for {
-		select {
-		case <-loopSignal:
-			// poll ocm for service logs
-			controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
-			if err := controller.Poller.Poll(controller.Processor); err != nil {
-				errorSignal <- err
+	for p := range loopSignal {
+		// poll ocm for service logs
+		controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
+		if err := p.Poll(controller.Processor); err != nil {
+			errorSignal <- err
 
-				return
-			}
+			return
+		}
 
-			// debug the response data
-			controller.Processor.Log.DebugF("response data: %s", controller.Processor.ResponseData)
+		// debug the response data
+		controller.Processor.Log.DebugF("response data: %s", controller.Processor.ResponseData)
 
-			// send service logs to the backend
-			if err := controller.Backend.Send(controller.Processor); err != nil {
-				errorSignal <- err
+		// send service logs to the backend
+		if err := controller.Backend.Send(controller.Processor); err != nil {
+			errorSignal <- err
 
-				return
-			}
+			return
 		}
 	}
 }

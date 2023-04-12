@@ -6,14 +6,14 @@ import (
 )
 
 const (
-	defaultEnvironmentClusterId = "OCM_CLUSTER_ID"
+	defaultEnvironmentClusterID = "OCM_CLUSTER_ID"
 )
 
-func getClusterId() (string, error) {
-	clusterId := os.Getenv(defaultEnvironmentClusterId)
-	if clusterId == "" {
-		return "", fmt.Errorf("missing required environment variable [%s]", defaultEnvironmentClusterId)
+func getClusterID() (string, error) {
+	clusterID := os.Getenv(defaultEnvironmentClusterID)
+	if clusterID == "" {
+		return "", fmt.Errorf("missing [%s] - %w", defaultEnvironmentClusterID, ErrMissingEnvironmentVariable)
 	}
 
-	return clusterId, nil
+	return clusterID, nil
 }

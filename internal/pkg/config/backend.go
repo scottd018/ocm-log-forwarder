@@ -2,15 +2,30 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
-	"github.com/scottd018/ocm-log-forwarder/internal/pkg/utils"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/scottd018/ocm-log-forwarder/internal/pkg/utils"
 )
 
+var (
+	ErrBackendUnknown             = errors.New("backend type is unknown")
+	ErrBackendAuthUnknown         = errors.New("backend auth type is unknown")
+	ErrBackendAuthUnkownError     = errors.New("an unknown error occurred retrieving basic auth credentials")
+	ErrBackendAuthSecretFormat    = errors.New("invalid secret format")
+	ErrBackendAuthMissingUsername = errors.New("unable to find username")
+	ErrBackendAuthMissingPassword = errors.New("unable to find password")
+)
+
+// NOTE: we are not storing credentials rather pointers to credentials here so
+// we do not need to lint this.
+//
+//nolint:gosec
 const (
-	// environment variables
+	// Default Environment Variables.
 	DefaultEnvironmentBackend                             = "BACKEND_TYPE"
 	defaultEnvironmentBackendElasticSearchURL             = "BACKEND_ES_URL"
 	defaultEnvironmentBackendElasticSearchAuthType        = "BACKEND_ES_AUTH_TYPE"
@@ -18,7 +33,7 @@ const (
 	defaultEnvironmentBackendElasticSearchSecretNamespace = "BACKEND_ES_SECRET_NAMESPACE"
 	defaultEnvironmentBackendElasticIndex                 = "BACKEND_ES_INDEX"
 
-	// default settings
+	// Default Settings for Environment Variables.
 	DefaultBackendElasticSearch                = "elasticsearch"
 	DefaultBackend                             = DefaultBackendElasticSearch
 	DefaultBackendAuthTypeBasic                = "basic"
@@ -41,35 +56,48 @@ func GetElasticSearchAuthType() string {
 	return utils.FromEnvironment(defaultEnvironmentBackendElasticSearchAuthType, DefaultBackendElasticSearchAuthType)
 }
 
-func GetElasticSearchAuthTypeBasic(client *kubernetes.Clientset, ctx context.Context) (string, string, error) {
+func GetElasticSearchAuthTypeBasic(client *kubernetes.Clientset, ctx context.Context) (username, password string, err error) {
 	secretName, secretNamespace := getElasticSearchAuthSecretName(), getElasticSearchAuthSecretNamespace()
 
 	secret, err := utils.GetKubernetesSecret(client, ctx, secretName, secretNamespace)
 	if err != nil {
 		return "", "", fmt.Errorf("error fetching secret containing elasticsearch auth info - %w", err)
 	}
+
 	authData := secret.Data
 
 	// return an error if we do not have exactly one item containing the user/pass
 	if len(authData) != 1 {
-		return "", "", fmt.Errorf("expect exactly one key value pair in auth data secret; found [%d]", len(authData))
+		return "", "", fmt.Errorf(
+			"expect exactly one key value pair in auth data secret; found [%d] - %w",
+			len(authData),
+			ErrBackendAuthSecretFormat,
+		)
 	}
 
 	// return the first key/value pair of the auth data as we only should have 1
 	for username, password := range authData {
 		if username == "" {
-			return "", "", fmt.Errorf("username must not be empty")
+			return "", "", fmt.Errorf(
+				"error retrieving username from secret [%s] - %w",
+				secretName,
+				ErrBackendAuthMissingUsername,
+			)
 		}
 
-		if string(password) == "" {
-			return "", "", fmt.Errorf("password must not be empty")
+		if len(password) == 0 {
+			return "", "", fmt.Errorf(
+				"error retrieving password from secret [%s] - %w",
+				secretName,
+				ErrBackendAuthMissingPassword,
+			)
 		}
 
 		return username, string(password), nil
 	}
 
 	// if we made it this far, something really bad happened
-	return "", "", fmt.Errorf("unknown error occurred when retrieving basic auth info for elasticsearch")
+	return "", "", ErrBackendAuthUnkownError
 }
 
 func getBackendConfig() (string, error) {
@@ -82,14 +110,20 @@ func getBackendConfig() (string, error) {
 	case backendType == DefaultBackendElasticSearch:
 		return DefaultBackendElasticSearch, nil
 	default:
-		return backend, fmt.Errorf("unknown backend type [%s]", backendType)
+		return backend, fmt.Errorf("backend type [%s] - %w", backendType, ErrBackendUnknown)
 	}
 }
 
 func getElasticSearchAuthSecretName() string {
-	return utils.FromEnvironment(defaultEnvironmentBackendElasticSearchSecretName, defaultBackendElasticSearchSecretName)
+	return utils.FromEnvironment(
+		defaultEnvironmentBackendElasticSearchSecretName,
+		defaultBackendElasticSearchSecretName,
+	)
 }
 
 func getElasticSearchAuthSecretNamespace() string {
-	return utils.FromEnvironment(defaultEnvironmentBackendElasticSearchSecretNamespace, defaultBackendElasticSearchSecretNamespace)
+	return utils.FromEnvironment(
+		defaultEnvironmentBackendElasticSearchSecretNamespace,
+		defaultBackendElasticSearchSecretNamespace,
+	)
 }

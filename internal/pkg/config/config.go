@@ -1,8 +1,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"time"
+)
+
+var (
+	ErrMissingEnvironmentVariable = errors.New("unable to find required environment variable")
 )
 
 type Config struct {
@@ -17,7 +22,7 @@ type Config struct {
 
 func Initialize() (*Config, error) {
 	// get the cluster id
-	clusterName, err := getClusterId()
+	clusterName, err := getClusterID()
 	if err != nil {
 		return &Config{}, fmt.Errorf("unable to get cluster id - %w", err)
 	}

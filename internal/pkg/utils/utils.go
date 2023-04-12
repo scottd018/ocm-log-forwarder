@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func FromEnvironment(variable string, def string) string {
+func FromEnvironment(variable, def string) string {
 	varFromEnv := os.Getenv(variable)
 	if varFromEnv != "" {
 		return varFromEnv

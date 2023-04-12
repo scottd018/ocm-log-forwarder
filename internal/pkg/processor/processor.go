@@ -53,12 +53,13 @@ func NewProcessor(cfg *config.Config) (*Processor, error) {
 
 func newKubeClient(proc Processor) (*kubernetes.Clientset, error) {
 	proc.Log.InfoF("initializing kubernetes cluster config: cluster=[%s]", proc.Config.ClusterID)
-	config, err := rest.InClusterConfig()
+	cfg, err := rest.InClusterConfig()
+
 	if err == nil {
 		// create the clientset for the config
-		client, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return &kubernetes.Clientset{}, fmt.Errorf("unable to create kubernetes client from in cluster - %w", err)
+		client, clusterErr := kubernetes.NewForConfig(cfg)
+		if clusterErr != nil {
+			return &kubernetes.Clientset{}, fmt.Errorf("unable to create kubernetes client from in cluster - %w", clusterErr)
 		}
 
 		return client, nil
@@ -69,12 +70,12 @@ func newKubeClient(proc Processor) (*kubernetes.Clientset, error) {
 	kubeConfig := kubeConfigPath()
 
 	proc.Log.InfoF("initializing kubernetes file config: cluster=[%s], file=[%s]", proc.Config.ClusterID, kubeConfig)
-	config, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
+	cfg, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err == nil {
 		// create the clientset for the config
-		client, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return &kubernetes.Clientset{}, fmt.Errorf("unable to create kubernetes client from kubeconfig - %w", err)
+		client, fileErr := kubernetes.NewForConfig(cfg)
+		if fileErr != nil {
+			return &kubernetes.Clientset{}, fmt.Errorf("unable to create kubernetes client from kubeconfig - %w", fileErr)
 		}
 
 		return client, nil

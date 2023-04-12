@@ -15,15 +15,15 @@ func main() {
 		panic(fmt.Errorf("unable to initialize config - %w", err))
 	}
 
-	// create the controller
-	controller, err := controller.NewController(cfg)
+	// create the ctrl
+	ctrl, err := controller.NewController(cfg)
 	if err != nil {
 		panic(fmt.Errorf("unable to initialize controller - %w", err))
 	}
 
 	// run the controller
-	if err := controller.Run(); err != nil {
-		controller.Processor.Log.ErrorF("error in control loop - %w", err)
+	if err := ctrl.Run(); err != nil {
+		ctrl.Processor.Log.ErrorF("error in control loop - %s", err)
 
 		os.Exit(1)
 	}

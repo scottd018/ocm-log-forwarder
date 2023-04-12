@@ -5,10 +5,8 @@ linters-settings:
   funlen:
     lines: 100
     statements: 50
-  # TODO: turn this on at a later time.  currently seeing many incorrect errors
-  #       related to this check.
-  # gci:
-  #   local-prefixes: github.com/nukleros/pod-security-webhook
+  gci:
+    local-prefixes: github.com/scottd018/ocm-log-forwarder
   goconst:
     min-len: 2
     min-occurrences: 2
@@ -27,10 +25,8 @@ linters-settings:
       - wrapperFunc
   gocyclo:
     min-complexity: 15
-  # TODO: turn this on at a later time.  currently seeing many incorrect errors
-  #       related to this check.
-  # goimports:
-  #   local-prefixes: github.com/nukleros/pod-security-webhook
+  goimports:
+    local-prefixes: github.com/scottd018/ocm-log-forwarder
   gomnd:
     settings:
       mnd:
@@ -117,7 +113,6 @@ linters:
     - unused
     - whitespace
     - wrapcheck
-    - wsl
 
     # ISSUES: the following have global issues and are disabled.
     # - exhaustruct: too restrictive on how to define structures
@@ -131,6 +126,7 @@ linters:
     # - rowserrcheck
     # - sqlclosecheck
     # - wastedassign
+    # - wsl
 
     # DEPRECATED: the following have been deprecated and disabled
     # - deadcode
