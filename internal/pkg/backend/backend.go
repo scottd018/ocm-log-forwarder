@@ -4,29 +4,14 @@ import (
 	"fmt"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
+	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
 type Backend interface {
-	Send(*processor.Processor) error
+	Send(*processor.Processor, *poller.Response) error
 	Initialize(*processor.Processor) error
 	String() string
-}
-
-// Documents stores an array of Documents.
-type Documents struct {
-	Items []Document `json:"items"`
-}
-
-// Document stores the important information from the service log to
-// be shipped to the backend.
-type Document struct {
-	ClusterID string `json:"cluster_id"`
-	Username  string `json:"username"`
-	Severity  string `json:"severity"`
-	Timestamp string `json:"timestamp"`
-	Summary   string `json:"summary"`
-	EventID   string `json:"event_stream_id"`
 }
 
 func Initialize(backend Backend, proc *processor.Processor) error {

@@ -1,6 +1,7 @@
 package poller
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,9 +18,9 @@ func NewPoller(proc *processor.Processor) (*Poller, error) {
 	return &Poller{Token: &token{}}, nil
 }
 
-func (poller *Poller) Poll(proc *processor.Processor) error {
+func (poller *Poller) Poll(proc *processor.Processor) (responseData Response, err error) {
 	if poller.Token == nil {
-		return fmt.Errorf("missing token from poller object - %w", ErrTokenInvalid)
+		return responseData, fmt.Errorf("missing token from poller object - %w", ErrTokenInvalid)
 	}
 
 	// refresh the token if it is invalid
@@ -27,29 +28,54 @@ func (poller *Poller) Poll(proc *processor.Processor) error {
 		proc.Log.Infof("refreshing token: cluster=[%s]", proc.Config.ClusterID)
 
 		if err := poller.Token.Refresh(proc); err != nil {
-			return fmt.Errorf("unable to refresh token - %w", err)
+			return responseData, fmt.Errorf("unable to refresh token - %w", err)
 		}
 	}
 
 	// call the endpoint
 	proc.Log.Infof("retrieving service logs: cluster=[%s]", proc.Config.ClusterID)
-	if err := poller.Call(proc); err != nil {
-		return fmt.Errorf("unable to retrieve service logs - %w", err)
+	if responseData, err = poller.Request(proc); err != nil {
+		return responseData, fmt.Errorf("unable to retrieve service logs - %w", err)
 	}
 
-	return nil
+	return responseData, nil
 }
 
-func (poller *Poller) Call(proc *processor.Processor) error {
+func (poller *Poller) Request(proc *processor.Processor) (responseData Response, err error) {
+	page := 1
+
+	// loop through each of the pages and generate a response that stores
+	// all of the messages.
+	for {
+		response, err := poller.Call(proc, page)
+		if err != nil {
+			return responseData, err
+		}
+
+		// append the items to the response
+		responseData.Messages = append(responseData.Messages, response.Messages...)
+
+		if response.PageCount() == page {
+			break
+		}
+
+		page++
+	}
+
+	return responseData, nil
+}
+
+func (poller *Poller) Call(proc *processor.Processor, pageNum int) (responseData Response, err error) {
 	// create payload
 	payload := url.Values{}
 	payload.Set("size", "1000")
+	payload.Set("page", fmt.Sprintf("%d", pageNum))
 	payload.Set("search", fmt.Sprintf("cluster_id = '%s'", proc.Config.ClusterID))
 
 	// create the url object with the base url and set the params
 	requestURL, err := url.Parse(serviceLogPath(poller.Token))
 	if err != nil {
-		return fmt.Errorf("unable to create base url object - %w", err)
+		return responseData, fmt.Errorf("unable to create base url object - %w", err)
 	}
 
 	requestURL.RawQuery = payload.Encode()
@@ -57,7 +83,7 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 	// create the request
 	request, err := http.NewRequest("GET", requestURL.String(), http.NoBody)
 	if err != nil {
-		return fmt.Errorf("unable to create http request - %w", err)
+		return responseData, fmt.Errorf("unable to create http request - %w", err)
 	}
 
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", poller.Token.BearerToken))
@@ -66,13 +92,13 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("error in http request - %w", err)
+		return responseData, fmt.Errorf("error in http request - %w", err)
 	}
 	defer response.Body.Close()
 
 	// check the response code
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf(
+		return responseData, fmt.Errorf(
 			"invalid response code [%d]; message [%s] - %w",
 			response.StatusCode,
 			response.Status,
@@ -80,15 +106,13 @@ func (poller *Poller) Call(proc *processor.Processor) error {
 		)
 	}
 
-	// retrieve the access token from the response
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("unable to read response body - %w", err)
+	// unmarshal the response
+	responseReader := io.NopCloser(response.Body)
+	if err := json.NewDecoder(responseReader).Decode(&responseData); err != nil {
+		return responseData, fmt.Errorf("unable to read response body - %w", err)
 	}
 
-	proc.ResponseData = responseData
-
-	return nil
+	return responseData, nil
 }
 
 func serviceLogPath(token *token) string {

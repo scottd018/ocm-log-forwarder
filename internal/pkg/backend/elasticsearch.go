@@ -2,37 +2,41 @@ package backend
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 
 	"github.com/olivere/elastic/v7"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
+	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
 const (
-	elasticSearchDocType = "_doc"
+	elasticSearchBatchSize = 100
 )
 
 type ElasticSearch struct {
-	Client  *elastic.Client
-	Request *ElasticSearchRequest
+	Client          *elastic.Client
+	Documents       []ElasticSearchDocument
+	SentDocumentIDs []string
 }
 
 type ElasticSearchRequest struct {
-	Documents []ElasticSearchDocument
+	Index     string
+	Documents []*ElasticSearchDocument
+	Bulk      *elastic.BulkService
 }
 
 type ElasticSearchDocument struct {
+	id        string
 	ClusterID string `json:"cluster_id"`
 	Username  string `json:"username"`
 	Severity  string `json:"severity"`
+	EventID   string `json:"event_stream_id"`
+	CreatedBy string `json:"created_by"`
 	Message   string `json:"message"`
 	Timestamp string `json:"@timestamp"`
-	EventID   string `json:"event_stream_id"`
 }
 
 func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
@@ -68,101 +72,115 @@ func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
 		return fmt.Errorf("auth type [%s] - %w", authType, config.ErrBackendAuthUnknown)
 	}
 
-	// store the client and request on the elasticsearch object
+	// store the client on the elasticsearch object
 	es.Client = client
-	es.Request = &ElasticSearchRequest{}
 
 	return nil
 }
 
-func (es *ElasticSearch) Send(proc *processor.Processor) error {
-	// serialize data to documents
-	documents := Documents{}
-	if err := json.Unmarshal(proc.ResponseData, &documents); err != nil {
-		return fmt.Errorf("unable to unmarshal response data to documents object - %w", err)
+func (es *ElasticSearch) Send(proc *processor.Processor, response *poller.Response) error {
+	var batchCount int
+
+	documents := es.UnsentDocuments(response.Messages)
+
+	documentCount := len(documents)
+
+	// return if there are no unsent documents to send
+	if documentCount == 0 {
+		return nil
 	}
 
-	index := config.GetElasticSearchIndex()
+	// we want to do this serially so we do not overwhelm the elasticsearch api
+	for i := 0; i < documentCount; i += elasticSearchBatchSize {
+		// get the lastDocument item for this batch
+		lastDocument := i + elasticSearchBatchSize
 
-	bulkRequest := es.Client.Bulk().Index(index).Type(elasticSearchDocType)
-
-	var documentCount int
-
-	for i := range documents.Items {
-		// create the elasticsearch document from the generic backend document
-		esDoc := ElasticSearchDocument{
-			ClusterID: documents.Items[i].ClusterID,
-			Username:  documents.Items[i].Username,
-			Severity:  documents.Items[i].Severity,
-			Message:   documents.Items[i].Summary,
-			Timestamp: documents.Items[i].Timestamp,
-			EventID:   documents.Items[i].EventID,
+		// reset the last item to the last document in the list
+		// if it becomes out of range
+		if lastDocument > documentCount {
+			lastDocument = documentCount
 		}
 
-		// skip processing if this has been sent
-		if es.Request.Sent(&esDoc) {
-			continue
-		}
+		// create a request for this batch
+		documentBatch := documents[i:lastDocument]
 
-		// serialize document as json
-		esBody, err := json.Marshal(esDoc)
+		response, err := es.BuildRequest(proc, documentBatch).BatchSend(proc)
 		if err != nil {
-			proc.Log.ErrorF("error serializing json for message [%s] - %s", esDoc.Message, err)
-
-			continue
+			proc.Log.ErrorF("batch number [%d] failed to send - %w", batchCount, err)
 		}
+
+		// append the batch count and handle the response
+		batchCount++
+		es.handleResponse(proc, response)
+	}
+
+	return nil
+}
+
+// BuildRequest builds an ElasticSearchRequest object from a set of documents.
+func (es *ElasticSearch) BuildRequest(proc *processor.Processor, documents []*ElasticSearchDocument) *ElasticSearchRequest {
+	docChan := make(chan *ElasticSearchDocument, len(documents))
+
+	request := &ElasticSearchRequest{
+		Index:     config.GetElasticSearchIndex(),
+		Bulk:      es.Client.Bulk().Index(config.GetElasticSearchIndex()),
+		Documents: make([]*ElasticSearchDocument, len(documents)),
+	}
+
+	// build the request for the individual document and add it to
+	// the batch send routine
+	for i := range documents {
+		go func(this *ElasticSearchDocument) {
+			docChan <- this
+		}(documents[i])
+	}
+
+	defer close(docChan)
+
+	// if we find one that matches, return
+	for i := 0; i < len(documents); i++ {
+		document := <-docChan
 
 		// add the document to the bulk request
 		proc.Log.Infof(
 			"adding document to elasticsearch bulk request: cluster=%s, event_stream_id=%s, index=%s",
 			proc.Config.ClusterID,
-			esDoc.EventID,
-			index,
+			document.EventID,
+			request.Index,
 		)
-		bulkRequest.Add(elastic.NewBulkIndexRequest().Id(esDoc.EventID).Doc(esBody))
-
-		// if we have made it this far, we are successful and can append the document to the list
-		// of documents and increment the document count to notify the logger how many
-		// documents we are sending as part of the request
-		documentCount++
-
-		es.Request.Documents = append(es.Request.Documents, esDoc)
+		proc.Log.DebugF("document: %+v", document)
+		request.Bulk.Add(elastic.NewBulkIndexRequest().Id(document.id).Doc(document))
 	}
 
-	// return if we have no documents to send as part of the request
-	if documentCount == 0 {
-		return nil
-	}
-
-	// send the bulk request
-	proc.Log.Infof("sending [%d] documents to elasticsearch: cluster=%s, index=%s", documentCount, proc.Config.ClusterID, index)
-	response, err := bulkRequest.Do(proc.Context)
-	if err != nil {
-		return fmt.Errorf("error sending bulk request to elasticsearch - %s", err)
-	}
-
-	// check for failures in the responses
-	if response.Errors {
-		for _, item := range response.Items {
-			for _, result := range item {
-				if result.Status != http.StatusOK {
-					proc.Log.ErrorF(
-						"error in elasticsearch request: status_code=%d, message=%s",
-						result.Status,
-						result.Result,
-					)
-				}
-			}
-		}
-	}
-
-	return nil
+	return request
 }
 
-func (req *ElasticSearchRequest) Sent(document *ElasticSearchDocument) bool {
-	for i := range req.Documents {
-		// skip adding a document to the request if we have already added it
-		if reflect.DeepEqual(req.Documents[i], document) {
+// UnsentDocuments builds an array of ElasticSearch documents from an array of service log
+// messages.
+func (es *ElasticSearch) UnsentDocuments(messages []*poller.ServiceLogMessage) []*ElasticSearchDocument {
+	documents := []*ElasticSearchDocument{}
+
+	for i := range messages {
+		document := buildDocument(messages[i])
+
+		if es.HasSent(document) {
+			continue
+		}
+
+		documents = append(documents, document)
+	}
+
+	return documents
+}
+
+func (es *ElasticSearch) HasSent(newDocument *ElasticSearchDocument) bool {
+	// return immediately if we have not sent any documents
+	if len(es.SentDocumentIDs) < 1 {
+		return false
+	}
+
+	for i := range es.SentDocumentIDs {
+		if newDocument.id == es.SentDocumentIDs[i] {
 			return true
 		}
 	}
@@ -172,4 +190,79 @@ func (req *ElasticSearchRequest) Sent(document *ElasticSearchDocument) bool {
 
 func (es *ElasticSearch) String() string {
 	return config.DefaultBackendElasticSearch
+}
+
+func (req *ElasticSearchRequest) BatchSend(proc *processor.Processor) (*elastic.BulkResponse, error) {
+	// return if we have no documents to send as part of the request
+	if req.Bulk.NumberOfActions() < 1 {
+		return nil, nil
+	}
+
+	// send the bulk request
+	proc.Log.Infof(
+		"sending [%d] documents to elasticsearch: cluster=%s, index=%s",
+		req.Bulk.NumberOfActions(),
+		proc.Config.ClusterID,
+		req.Index,
+	)
+	bulkResponse, err := req.Bulk.Do(proc.Context)
+	if err != nil {
+		return bulkResponse, fmt.Errorf("error sending bulk request to elasticsearch - %w", err)
+	}
+
+	return bulkResponse, nil
+}
+
+// handleResponse handles the response for an elasticsearch request.  It stores successful
+// items on the object and logs any unsuccessful or updated items.
+func (es *ElasticSearch) handleResponse(proc *processor.Processor, response *elastic.BulkResponse) {
+	// check for failures in the responses and log
+	if response.Errors {
+		for _, failed := range response.Failed() {
+			proc.Log.ErrorF(
+				"error in elasticsearch request: index=%s, message_id=%s, status_code=%d, message=%s",
+				failed.Index,
+				failed.Id,
+				failed.Status,
+				failed.Result,
+			)
+		}
+	}
+
+	// check for creates in the responses and log
+	if len(response.Created()) > 0 {
+		for _, created := range response.Created() {
+			proc.Log.InfoF("created elasticsearch id: message_id=%s", created.Id)
+		}
+	}
+
+	// check for updates in the responses and log
+	if len(response.Updated()) > 0 {
+		for _, updated := range response.Updated() {
+			proc.Log.InfoF("updated elasticsearch id: message_id=%s", updated.Id)
+		}
+	}
+
+	// check for successes and log (debug only)
+	if len(response.Succeeded()) > 0 {
+		for _, succeeded := range response.Succeeded() {
+			es.SentDocumentIDs = append(es.SentDocumentIDs, succeeded.Id)
+
+			proc.Log.DebugF("succeeded elasticsearch id: message_id=%s", succeeded.Id)
+		}
+	}
+}
+
+// buildDocument builds an ElasticSearch document from a service log message.
+func buildDocument(message *poller.ServiceLogMessage) *ElasticSearchDocument {
+	return &ElasticSearchDocument{
+		id:        message.ID,
+		ClusterID: message.ClusterID,
+		Username:  message.Username,
+		Severity:  message.Severity,
+		EventID:   message.EventID,
+		CreatedBy: message.CreatedBy,
+		Message:   message.Summary,
+		Timestamp: message.Timestamp,
+	}
 }

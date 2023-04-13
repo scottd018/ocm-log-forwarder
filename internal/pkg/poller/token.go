@@ -60,7 +60,7 @@ func (token *token) Refresh(proc *processor.Processor) error {
 
 	// refresh the token
 	proc.Log.Infof("retrieving bearer token: cluster=[%s]", proc.Config.ClusterID)
-	if err := token.getBearerToken(proc, tokenData); err != nil {
+	if err := token.getBearerToken(&tokenData); err != nil {
 		return fmt.Errorf("unable to retrieve bearer token - %w", err)
 	}
 
@@ -83,7 +83,7 @@ func (token *token) Valid() bool {
 	}
 }
 
-func (token *token) getBearerToken(proc *processor.Processor, tokenData TokenData) error {
+func (token *token) getBearerToken(tokenData *TokenData) error {
 	// set the endpoint for this token
 	token.Endpoint = tokenData.URL
 

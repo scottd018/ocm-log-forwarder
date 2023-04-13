@@ -78,20 +78,28 @@ func (controller *Controller) Run() error {
 }
 
 func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal chan<- error) {
-	for p := range loopSignal {
+	for loop := range loopSignal {
 		// poll ocm for service logs
 		controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
-		if err := p.Poll(controller.Processor); err != nil {
+		response, err := loop.Poll(controller.Processor)
+		if err != nil {
 			errorSignal <- err
 
 			return
 		}
 
 		// debug the response data
-		controller.Processor.Log.DebugF("response data: %s", controller.Processor.ResponseData)
+		if controller.Processor.Config.Debug {
+			responseData, err := response.Data()
+			if err != nil {
+				errorSignal <- err
+			}
+
+			controller.Processor.Log.DebugF("response data: %+v", responseData)
+		}
 
 		// send service logs to the backend
-		if err := controller.Backend.Send(controller.Processor); err != nil {
+		if err := controller.Backend.Send(controller.Processor, &response); err != nil {
 			errorSignal <- err
 
 			return
