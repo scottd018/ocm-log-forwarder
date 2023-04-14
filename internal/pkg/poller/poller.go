@@ -27,7 +27,7 @@ func (poller *Poller) Poll(proc *processor.Processor) (responseData Response, er
 	if !poller.Token.Valid() {
 		proc.Log.Infof("refreshing token: cluster=[%s]", proc.Config.ClusterID)
 
-		if err := poller.Token.Refresh(proc); err != nil {
+		if err = poller.Token.Refresh(proc); err != nil {
 			return responseData, fmt.Errorf("unable to refresh token - %w", err)
 		}
 	}
