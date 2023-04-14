@@ -78,10 +78,10 @@ func (controller *Controller) Run() error {
 }
 
 func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal chan<- error) {
-	for loop := range loopSignal {
+	for ocm := range loopSignal {
 		// poll ocm for service logs
 		controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
-		response, err := loop.Poll(controller.Processor)
+		response, err := ocm.Poll(controller.Processor)
 		if err != nil {
 			errorSignal <- err
 

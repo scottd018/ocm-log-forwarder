@@ -16,6 +16,7 @@ type Config struct {
 	PollerInterval  time.Duration
 	SecretName      string
 	SecretNamespace string
+	SecretFile      string
 
 	Debug bool
 }
@@ -45,6 +46,7 @@ func Initialize() (*Config, error) {
 		PollerInterval:  interval,
 		SecretName:      getSecretName(),
 		SecretNamespace: getSecretNamespace(),
+		SecretFile:      getSecretFile(),
 		Debug:           getDebug(),
 	}, nil
 }
