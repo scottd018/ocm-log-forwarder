@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 
+	"github.com/scottd018/ocm-log-forwarder/internal/pkg/backend/elasticsearch"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
@@ -16,7 +17,7 @@ type Backend interface {
 
 func Initialize(backend Backend, proc *processor.Processor) error {
 	switch obj := backend.(type) {
-	case *ElasticSearch:
+	case *elasticsearch.ElasticSearch:
 		return obj.Initialize(proc)
 	default:
 		return fmt.Errorf("backend [%T] - %w", obj, config.ErrBackendUnknown)
@@ -28,7 +29,7 @@ func FromConfig(proc *processor.Processor) (Backend, error) {
 
 	switch proc.Config.Backend {
 	case config.DefaultBackendElasticSearch:
-		backend = &ElasticSearch{}
+		backend = &elasticsearch.ElasticSearch{}
 	default:
 		return backend, fmt.Errorf(
 			"backend from environment [%s=%s] - %w",

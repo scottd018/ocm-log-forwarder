@@ -1,4 +1,4 @@
-package backend
+package elasticsearch
 
 import (
 	"crypto/tls"
@@ -20,23 +20,6 @@ type ElasticSearch struct {
 	Client          *elastic.Client
 	Documents       []ElasticSearchDocument
 	SentDocumentIDs []string
-}
-
-type ElasticSearchRequest struct {
-	Index     string
-	Documents []*ElasticSearchDocument
-	Bulk      *elastic.BulkService
-}
-
-type ElasticSearchDocument struct {
-	id        string
-	ClusterID string `json:"cluster_id"`
-	Username  string `json:"username"`
-	Severity  string `json:"severity"`
-	EventID   string `json:"event_stream_id"`
-	CreatedBy string `json:"created_by"`
-	Message   string `json:"message"`
-	Timestamp string `json:"@timestamp"`
 }
 
 func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
@@ -192,27 +175,6 @@ func (es *ElasticSearch) String() string {
 	return config.DefaultBackendElasticSearch
 }
 
-func (req *ElasticSearchRequest) BatchSend(proc *processor.Processor) (*elastic.BulkResponse, error) {
-	// return if we have no documents to send as part of the request
-	if req.Bulk.NumberOfActions() < 1 {
-		return nil, nil
-	}
-
-	// send the bulk request
-	proc.Log.Infof(
-		"sending [%d] documents to elasticsearch: cluster=%s, index=%s",
-		req.Bulk.NumberOfActions(),
-		proc.Config.ClusterID,
-		req.Index,
-	)
-	bulkResponse, err := req.Bulk.Do(proc.Context)
-	if err != nil {
-		return bulkResponse, fmt.Errorf("error sending bulk request to elasticsearch - %w", err)
-	}
-
-	return bulkResponse, nil
-}
-
 // handleResponse handles the response for an elasticsearch request.  It stores successful
 // items on the object and logs any unsuccessful or updated items.
 func (es *ElasticSearch) handleResponse(proc *processor.Processor, response *elastic.BulkResponse) {
@@ -250,19 +212,5 @@ func (es *ElasticSearch) handleResponse(proc *processor.Processor, response *ela
 
 			proc.Log.DebugF("succeeded elasticsearch id: message_id=%s", succeeded.Id)
 		}
-	}
-}
-
-// buildDocument builds an ElasticSearch document from a service log message.
-func buildDocument(message *poller.ServiceLogMessage) *ElasticSearchDocument {
-	return &ElasticSearchDocument{
-		id:        message.ID,
-		ClusterID: message.ClusterID,
-		Username:  message.Username,
-		Severity:  message.Severity,
-		EventID:   message.EventID,
-		CreatedBy: message.CreatedBy,
-		Message:   message.Summary,
-		Timestamp: message.Timestamp,
 	}
 }
