@@ -32,6 +32,9 @@ const (
 	defaultEnvironmentBackendElasticSearchSecretName      = "BACKEND_ES_SECRET_NAME"
 	defaultEnvironmentBackendElasticSearchSecretNamespace = "BACKEND_ES_SECRET_NAMESPACE"
 	defaultEnvironmentBackendElasticIndex                 = "BACKEND_ES_INDEX"
+	DefaultEnvironmentBackendElasticTLSCertificate        = "BACKEND_ES_CERT"
+	DefaultEnvironmentBackendElasticTLSKey                = "BACKEND_ES_KEY"
+	DefaultEnvironmentBackendElasticTLSVerify             = "BACKEND_ES_TLS_VERIFY"
 
 	// Default Settings for Environment Variables.
 	DefaultBackendElasticSearch                = "elasticsearch"
@@ -42,6 +45,9 @@ const (
 	defaultBackendElasticSearchURL             = "http://localhost:9200"
 	defaultBackendElasticSearchSecretName      = "elastic-auth"
 	defaultBackendElasticSearchSecretNamespace = "ocm-log-forwarder"
+	DefaultBackendElasticTLSCertificate        = "/etc/pki/tls.crt"
+	DefaultBackendElasticTLSKey                = "/etc/pki/tls.key"
+	DefaultBackendElasticTLSVerify             = "true"
 )
 
 func GetElasticSearchIndex() string {
@@ -54,6 +60,12 @@ func GetElasticSearchURL() string {
 
 func GetElasticSearchAuthType() string {
 	return utils.FromEnvironment(defaultEnvironmentBackendElasticSearchAuthType, DefaultBackendElasticSearchAuthType)
+}
+
+func GetElasticSearchTLSConnectionInfo() (tlsCert, tlsKey string, tlsVerify bool) {
+	return utils.FromEnvironment(DefaultEnvironmentBackendElasticTLSCertificate, DefaultBackendElasticTLSCertificate),
+		utils.FromEnvironment(DefaultEnvironmentBackendElasticTLSKey, DefaultBackendElasticTLSKey),
+		utils.BoolFromString(utils.FromEnvironment(DefaultEnvironmentBackendElasticTLSVerify, DefaultBackendElasticTLSVerify))
 }
 
 func GetElasticSearchAuthTypeBasic(client *kubernetes.Clientset, ctx context.Context) (username, password string, err error) {

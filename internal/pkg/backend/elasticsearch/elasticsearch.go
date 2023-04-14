@@ -1,9 +1,7 @@
 package elasticsearch
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net/http"
 
 	"github.com/olivere/elastic/v7"
 
@@ -22,34 +20,15 @@ type ElasticSearch struct {
 	SentDocumentIDs []string
 }
 
-func (es *ElasticSearch) Initialize(proc *processor.Processor) error {
+func (es *ElasticSearch) Initialize(proc *processor.Processor) (err error) {
 	var client *elastic.Client
 
 	// create the client based on the authentication type
 	switch authType := config.GetElasticSearchAuthType(); {
 	case authType == config.DefaultBackendAuthTypeBasic:
-		username, password, err := config.GetElasticSearchAuthTypeBasic(proc.KubeClient, proc.Context)
+		client, err = getAuthTypeBasic(proc)
 		if err != nil {
-			return fmt.Errorf("unable to configure basic auth type - %w", err)
-		}
-
-		client, err = elastic.NewClient(
-			elastic.SetSniff(false),
-			elastic.SetURL(config.GetElasticSearchURL()),
-			elastic.SetBasicAuth(username, password),
-			elastic.SetHttpClient(
-				&http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-					},
-				},
-			),
-		)
-
-		if err != nil {
-			return fmt.Errorf("unable to create elasticsearch client - %w", err)
+			return err
 		}
 	default:
 		return fmt.Errorf("auth type [%s] - %w", authType, config.ErrBackendAuthUnknown)

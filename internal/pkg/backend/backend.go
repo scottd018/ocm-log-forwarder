@@ -18,7 +18,11 @@ type Backend interface {
 func Initialize(backend Backend, proc *processor.Processor) error {
 	switch obj := backend.(type) {
 	case *elasticsearch.ElasticSearch:
-		return obj.Initialize(proc)
+		if err := obj.Initialize(proc); err != nil {
+			return fmt.Errorf("unable to initialize elasticsearch backend - %w", err)
+		}
+
+		return nil
 	default:
 		return fmt.Errorf("backend [%T] - %w", obj, config.ErrBackendUnknown)
 	}
