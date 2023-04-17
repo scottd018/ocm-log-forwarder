@@ -1,28 +1,33 @@
 package elasticsearch
 
-import "github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
+import v1 "github.com/openshift-online/ocm-sdk-go/servicelogs/v1"
 
+// ElasticSearchDocument represents the final document that gets sent
+// to ElasticSearch.  These are the fields that show in in the index
+// as represented by the json tags.
 type ElasticSearchDocument struct {
-	id        string
-	ClusterID string `json:"cluster_id"`
-	Username  string `json:"username"`
-	Severity  string `json:"severity"`
-	EventID   string `json:"event_stream_id"`
-	CreatedBy string `json:"created_by"`
-	Message   string `json:"message"`
-	Timestamp string `json:"@timestamp"`
+	id          string
+	ClusterID   string `json:"cluster_id"`
+	ExternalID  string `json:"external_id"`
+	Username    string `json:"username"`
+	Severity    string `json:"severity"`
+	ServiceName string `json:"service_name"`
+	EventID     string `json:"event_stream_id"`
+	Message     string `json:"message"`
+	Timestamp   string `json:"@timestamp"`
 }
 
 // buildDocument builds an ElasticSearch document from a service log message.
-func buildDocument(message *poller.ServiceLogMessage) *ElasticSearchDocument {
+func buildDocument(log *v1.LogEntry) *ElasticSearchDocument {
 	return &ElasticSearchDocument{
-		id:        message.ID,
-		ClusterID: message.ClusterID,
-		Username:  message.Username,
-		Severity:  message.Severity,
-		EventID:   message.EventID,
-		CreatedBy: message.CreatedBy,
-		Message:   message.Summary,
-		Timestamp: message.Timestamp,
+		id:          log.ID(),
+		ClusterID:   log.ClusterID(),
+		ExternalID:  log.ClusterUUID(),
+		Username:    log.Username(),
+		Severity:    string(log.Severity()),
+		EventID:     log.EventStreamID(),
+		ServiceName: log.ServiceName(),
+		Message:     log.Summary(),
+		Timestamp:   log.Timestamp().String(),
 	}
 }

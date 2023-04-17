@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/olivere/elastic/v7"
+	v1 "github.com/openshift-online/ocm-sdk-go/servicelogs/v1"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
@@ -43,7 +44,7 @@ func (es *ElasticSearch) Initialize(proc *processor.Processor) (err error) {
 func (es *ElasticSearch) Send(proc *processor.Processor, response *poller.Response) error {
 	var batchCount int
 
-	documents := es.UnsentDocuments(response.Messages)
+	documents := es.UnsentDocuments(response.Logs)
 
 	documentCount := len(documents)
 
@@ -119,11 +120,11 @@ func (es *ElasticSearch) BuildRequest(proc *processor.Processor, documents []*El
 
 // UnsentDocuments builds an array of ElasticSearch documents from an array of service log
 // messages.
-func (es *ElasticSearch) UnsentDocuments(messages []*poller.ServiceLogMessage) []*ElasticSearchDocument {
+func (es *ElasticSearch) UnsentDocuments(logs []*v1.LogEntry) []*ElasticSearchDocument {
 	documents := []*ElasticSearchDocument{}
 
-	for i := range messages {
-		document := buildDocument(messages[i])
+	for i := range logs {
+		document := buildDocument(logs[i])
 
 		if es.HasSent(document) {
 			continue

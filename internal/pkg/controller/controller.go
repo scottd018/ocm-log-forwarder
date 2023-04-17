@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/backend"
@@ -81,7 +82,7 @@ func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal 
 	for ocm := range loopSignal {
 		// poll ocm for service logs
 		controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
-		response, err := ocm.Poll(controller.Processor)
+		response, err := ocm.Request(controller.Processor)
 		if err != nil {
 			errorSignal <- err
 
@@ -105,4 +106,16 @@ func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal 
 			return
 		}
 	}
+}
+
+func (controller *Controller) Stop(errors ...error) {
+	for i := range errors {
+		controller.Processor.Log.ErrorF("error in control loop - %s", errors[i])
+	}
+
+	if err := controller.Poller.Client.Close(); err != nil {
+		controller.Processor.Log.ErrorF("error closing poller client - %s", err)
+	}
+
+	os.Exit(1)
 }

@@ -9,18 +9,12 @@ import (
 //
 //nolint:gosec
 const (
-	defaultEnvironmentSecretFile      = "OCM_SECRET_FILE"
 	defaultEnvironmentSecretName      = "OCM_SECRET_NAME"
 	defaultEnvironmentSecretNamespace = "OCM_SECRET_NAMESPACE"
 
-	defaultSecretFile      = "~/.ocm.json"
 	defaultSecretName      = "ocm-token"
 	defaultSecretNamespace = "ocm-log-forwarder"
 )
-
-func getSecretFile() string {
-	return utils.FromEnvironment(defaultEnvironmentSecretFile, defaultSecretFile)
-}
 
 func getSecretName() string {
 	return utils.FromEnvironment(defaultEnvironmentSecretName, defaultSecretName)

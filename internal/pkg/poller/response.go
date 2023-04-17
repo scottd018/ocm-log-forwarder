@@ -3,28 +3,17 @@ package poller
 import (
 	"encoding/json"
 	"fmt"
+
+	v1 "github.com/openshift-online/ocm-sdk-go/servicelogs/v1"
 )
 
 // Response stores an array of ResponseItems.  It represents
 // a response from OCM.
 type Response struct {
-	Messages []*ServiceLogMessage `json:"items"`
+	Logs []*v1.LogEntry
 
-	Page  int `json:"page,omitempty"`
 	Size  int `json:"size,omitempty"`
 	Total int `json:"total,omitempty"`
-}
-
-// ServiceLogMessage encompasses an individual service log message.
-type ServiceLogMessage struct {
-	ID        string `json:"id"`
-	Summary   string `json:"summary"`
-	Timestamp string `json:"timestamp"`
-	ClusterID string `json:"cluster_id"`
-	Username  string `json:"username"`
-	Severity  string `json:"severity"`
-	EventID   string `json:"event_stream_id"`
-	CreatedBy string `json:"created_by"`
 }
 
 // PageCount returns the total number of pages in the response.

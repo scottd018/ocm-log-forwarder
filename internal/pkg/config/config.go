@@ -17,6 +17,7 @@ type Config struct {
 	SecretName      string
 	SecretNamespace string
 	SecretFile      string
+	TokenFile       string
 
 	Debug bool
 }
@@ -46,7 +47,8 @@ func Initialize() (*Config, error) {
 		PollerInterval:  interval,
 		SecretName:      getSecretName(),
 		SecretNamespace: getSecretNamespace(),
-		SecretFile:      getSecretFile(),
+		SecretFile:      getTokenFile(),
+		TokenFile:       getTokenFile(),
 		Debug:           getDebug(),
 	}, nil
 }

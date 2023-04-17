@@ -1,59 +1,64 @@
 package poller
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
+
+	sdk "github.com/openshift-online/ocm-sdk-go"
+	v1 "github.com/openshift-online/ocm-sdk-go/servicelogs/v1"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
+const (
+	defaultPollerRequestSize = 1000
+)
+
 type Poller struct {
-	Token *token
+	Client *sdk.Connection
 }
 
 func NewPoller(proc *processor.Processor) (*Poller, error) {
-	return &Poller{Token: &token{}}, nil
+	// retrieve the token
+	token, err := NewToken(proc.Config.TokenFile)
+	if err != nil {
+		return &Poller{}, fmt.Errorf("unable to create poller token - %w", err)
+	}
+
+	// set the client
+	client, err := sdk.NewConnectionBuilder().
+		Tokens(token.RefreshToken).
+		Build()
+	if err != nil {
+		return &Poller{}, fmt.Errorf("unable to build poller connection - %w", err)
+	}
+
+	return &Poller{Client: client}, nil
 }
 
-func (poller *Poller) Poll(proc *processor.Processor) (responseData Response, err error) {
-	if poller.Token == nil {
-		return responseData, fmt.Errorf("missing token from poller object - %w", ErrTokenInvalid)
+func (poller *Poller) Request(proc *processor.Processor) (response Response, err error) {
+	if poller.Client == nil {
+		return response, fmt.Errorf("missing client from poller object - %w", ErrTokenInvalid)
 	}
-
-	// refresh the token if it is invalid
-	if !poller.Token.Valid() {
-		proc.Log.Infof("refreshing token: cluster=[%s]", proc.Config.ClusterID)
-
-		if err = poller.Token.Refresh(proc); err != nil {
-			return responseData, fmt.Errorf("unable to refresh token - %w", err)
-		}
-	}
-
-	// call the endpoint
-	proc.Log.Infof("retrieving service logs: cluster=[%s]", proc.Config.ClusterID)
-	if responseData, err = poller.Request(proc); err != nil {
-		return responseData, fmt.Errorf("unable to retrieve service logs - %w", err)
-	}
-
-	return responseData, nil
-}
-
-func (poller *Poller) Request(proc *processor.Processor) (responseData Response, err error) {
-	page := 1
 
 	// loop through each of the pages and generate a response that stores
 	// all of the messages.
+	page := 1
 	for {
-		response, err := poller.Call(proc, page)
+		logResponse, err := poller.RequestPage(proc, page)
 		if err != nil {
-			return responseData, err
+			return response, err
+		}
+
+		// ensure the response was ok
+		logs, ok := logResponse.GetItems()
+		if !ok {
+			return response, fmt.Errorf("unable to retrieve logs from response page [%d]", page)
 		}
 
 		// append the items to the response
-		responseData.Messages = append(responseData.Messages, response.Messages...)
+		response.Logs = append(response.Logs, logs.Slice()...)
+		response.Total = logResponse.Total()
+		response.Size = logResponse.Size()
 
 		if response.PageCount() == page {
 			break
@@ -62,59 +67,23 @@ func (poller *Poller) Request(proc *processor.Processor) (responseData Response,
 		page++
 	}
 
-	return responseData, nil
+	return response, nil
 }
 
-func (poller *Poller) Call(proc *processor.Processor, pageNum int) (responseData Response, err error) {
-	// create payload
-	payload := url.Values{}
-	payload.Set("size", "1000")
-	payload.Set("page", fmt.Sprintf("%d", pageNum))
-	payload.Set("search", fmt.Sprintf("cluster_id = '%s'", proc.Config.ClusterID))
-
-	// create the url object with the base url and set the params
-	requestURL, err := url.Parse(serviceLogPath(poller.Token))
-	if err != nil {
-		return responseData, fmt.Errorf("unable to create base url object - %w", err)
-	}
-
-	requestURL.RawQuery = payload.Encode()
-
-	// create the request
-	request, err := http.NewRequest("GET", requestURL.String(), http.NoBody)
-	if err != nil {
-		return responseData, fmt.Errorf("unable to create http request - %w", err)
-	}
-
-	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", poller.Token.BearerToken))
+func (poller *Poller) RequestPage(proc *processor.Processor, pageNum int) (*v1.ClusterLogsListResponse, error) {
+	request := poller.Client.ServiceLogs().
+		V1().
+		ClusterLogs().
+		List().
+		Search(fmt.Sprintf("cluster_id = '%s'", proc.Config.ClusterID)).
+		Size(defaultPollerRequestSize).
+		Page(pageNum)
 
 	// send the request
-	client := &http.Client{}
-	response, err := client.Do(request)
+	response, err := request.Send()
 	if err != nil {
-		return responseData, fmt.Errorf("error in http request - %w", err)
-	}
-	defer response.Body.Close()
-
-	// check the response code
-	if response.StatusCode != http.StatusOK {
-		return responseData, fmt.Errorf(
-			"invalid response code [%d]; message [%s] - %w",
-			response.StatusCode,
-			response.Status,
-			ErrResponseInvalid,
-		)
+		return &v1.ClusterLogsListResponse{}, fmt.Errorf("error requesting service logs - %w", err)
 	}
 
-	// unmarshal the response
-	responseReader := io.NopCloser(response.Body)
-	if err := json.NewDecoder(responseReader).Decode(&responseData); err != nil {
-		return responseData, fmt.Errorf("unable to read response body - %w", err)
-	}
-
-	return responseData, nil
-}
-
-func serviceLogPath(token *token) string {
-	return fmt.Sprintf("%s/api/service_logs/v1/cluster_logs", token.Endpoint)
+	return response, nil
 }
