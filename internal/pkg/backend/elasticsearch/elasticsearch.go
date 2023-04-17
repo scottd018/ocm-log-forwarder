@@ -106,9 +106,9 @@ func (es *ElasticSearch) BuildRequest(proc *processor.Processor, documents []*El
 
 		// add the document to the bulk request
 		proc.Log.Infof(
-			"adding document to elasticsearch bulk request: cluster=%s, event_stream_id=%s, index=%s",
+			"adding document to elasticsearch bulk request: cluster=%s, id=%s, index=%s",
 			proc.Config.ClusterID,
-			document.EventID,
+			document.id,
 			request.Index,
 		)
 		proc.Log.DebugF("document: %+v", document)
