@@ -89,16 +89,6 @@ func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal 
 			return
 		}
 
-		// debug the response data
-		if controller.Processor.Config.Debug {
-			responseData, err := response.Data()
-			if err != nil {
-				errorSignal <- err
-			}
-
-			controller.Processor.Log.DebugF("response data: %+v", responseData)
-		}
-
 		// send service logs to the backend
 		if err := controller.Backend.Send(controller.Processor, &response); err != nil {
 			errorSignal <- err
