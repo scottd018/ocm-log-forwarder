@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/olivere/elastic/v7"
+	"github.com/rs/zerolog/log"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
 )
 
@@ -20,12 +21,11 @@ func (req *ElasticSearchRequest) BatchSend(proc *processor.Processor) (*elastic.
 	}
 
 	// send the bulk request
-	proc.Log.Infof(
-		"sending [%d] documents to elasticsearch: cluster=%s, index=%s",
-		req.Bulk.NumberOfActions(),
-		proc.Config.ClusterID,
-		req.Index,
-	)
+	log.Info().
+		Str("cluster", proc.Config.ClusterID).
+		Str("index", req.Index).
+		Int("document_count", req.Bulk.NumberOfActions()).
+		Msg("sending documents to elasticsearch")
 	bulkResponse, err := req.Bulk.Do(proc.Context)
 	if err != nil {
 		return bulkResponse, fmt.Errorf("error sending bulk request to elasticsearch - %w", err)

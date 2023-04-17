@@ -2,10 +2,10 @@ package processor
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
-	"github.com/apsdehal/go-logger"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/net/context"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -16,7 +16,6 @@ import (
 )
 
 type Processor struct {
-	Log          *logger.Logger
 	Config       *config.Config
 	Context      context.Context
 	ResponseData []byte
@@ -24,19 +23,14 @@ type Processor struct {
 }
 
 func NewProcessor(cfg *config.Config) (*Processor, error) {
-	// create a logger using the backend string as the designator
-	log, err := logger.New(cfg.Backend, 1, os.Stdout)
-	if err != nil {
-		return &Processor{}, fmt.Errorf("unable to setup logger - %w", err)
-	}
-
+	// setup the logger
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	if cfg.Debug {
-		log.SetLogLevel(logger.DebugLevel)
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
 	// create the processor
 	processor := &Processor{
-		Log:     log,
 		Config:  cfg,
 		Context: context.Background(),
 	}
@@ -52,7 +46,7 @@ func NewProcessor(cfg *config.Config) (*Processor, error) {
 }
 
 func newKubeClient(proc Processor) (*kubernetes.Clientset, error) {
-	proc.Log.InfoF("initializing kubernetes cluster config: cluster=[%s]", proc.Config.ClusterID)
+	proc.Log(log.Info().Str("cluster", proc.Config.ClusterID), "initializing kubernetes cluster config")
 	cfg, err := rest.InClusterConfig()
 
 	if err == nil {
@@ -65,11 +59,11 @@ func newKubeClient(proc Processor) (*kubernetes.Clientset, error) {
 		return client, nil
 	}
 
-	proc.Log.WarningF("unable to initialize cluster config: cluster=[%s], attempting file initialization", proc.Config.ClusterID)
+	proc.Log(log.Warn().Str("cluster", proc.Config.ClusterID), "unable to initialize in-cluster config; attempting file initialization")
 
 	kubeConfig := kubeConfigPath()
 
-	proc.Log.InfoF("initializing kubernetes file config: cluster=[%s], file=[%s]", proc.Config.ClusterID, kubeConfig)
+	proc.Log(log.Info().Str("cluster", proc.Config.ClusterID), "initializing kubernetes file config")
 	cfg, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err == nil {
 		// create the clientset for the config
@@ -82,6 +76,10 @@ func newKubeClient(proc Processor) (*kubernetes.Clientset, error) {
 	}
 
 	return &kubernetes.Clientset{}, fmt.Errorf("unable to create kubernetes client - %w", err)
+}
+
+func (proc Processor) Log(event *zerolog.Event, message string) {
+	event.Str("source", "controller").Msg(message)
 }
 
 func homeDir() string {

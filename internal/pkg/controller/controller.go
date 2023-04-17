@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/backend"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
@@ -26,14 +27,14 @@ func NewController(cfg *config.Config) (*Controller, error) {
 	}
 
 	// initialize the backend
-	proc.Log.Infof("initializing backend: cluster=[%s], type=[%s]", cfg.ClusterID, cfg.Backend)
-	logBackend, err := backend.FromConfig(proc)
+	proc.Log(log.Info().Str("cluster", cfg.ClusterID), "initializing backend")
+	logBackend, err := backend.Initialize(proc)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize backend - %w", err)
 	}
 
 	// create the poller
-	proc.Log.Infof("initializing poller: cluster=[%s], interval=[%v minutes]", cfg.ClusterID, cfg.PollerInterval.Minutes())
+	proc.Log(log.Info().Str("cluster", cfg.ClusterID).Float64("interval", cfg.PollerInterval.Minutes()), "initializing poller")
 	ocmPoller, err := poller.NewPoller(proc)
 	if err != nil {
 		return &Controller{}, fmt.Errorf("unable to initialize poller - %w", err)
@@ -55,7 +56,7 @@ func (controller *Controller) Run() error {
 	errorSignal := make(chan error)
 
 	// start the go routine
-	controller.Processor.Log.InfoF("starting main program loop")
+	controller.Processor.Log(log.Info(), "starting main program loop")
 	go controller.Loop(loopSignal, errorSignal)
 
 	// run immediately
@@ -71,7 +72,7 @@ func (controller *Controller) Run() error {
 			loopSignal <- *controller.Poller
 		case err := <-errorSignal:
 			// log and return the error if we received one
-			controller.Processor.Log.Error(err.Error())
+			controller.Processor.Log(log.Err(err), "received error signal")
 
 			return err
 		}
@@ -81,7 +82,7 @@ func (controller *Controller) Run() error {
 func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal chan<- error) {
 	for ocm := range loopSignal {
 		// poll ocm for service logs
-		controller.Processor.Log.InfoF("polling openshift cluster manager: cluster=[%s]", controller.Processor.Config.ClusterID)
+		controller.Processor.Log(log.Info().Str("cluster", controller.Processor.Config.ClusterID), "polling openshift cluster manager")
 		response, err := ocm.Request(controller.Processor)
 		if err != nil {
 			errorSignal <- err
@@ -100,11 +101,11 @@ func (controller *Controller) Loop(loopSignal <-chan poller.Poller, errorSignal 
 
 func (controller *Controller) Stop(errors ...error) {
 	for i := range errors {
-		controller.Processor.Log.ErrorF("error in control loop - %s", errors[i])
+		controller.Processor.Log(log.Err(errors[i]), "error in control loop")
 	}
 
 	if err := controller.Poller.Client.Close(); err != nil {
-		controller.Processor.Log.ErrorF("error closing poller client - %s", err)
+		controller.Processor.Log(log.Err(err), "error closing poller client")
 	}
 
 	os.Exit(1)

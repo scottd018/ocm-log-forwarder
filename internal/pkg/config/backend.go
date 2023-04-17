@@ -38,6 +38,7 @@ const (
 
 	// Default Settings for Environment Variables.
 	DefaultBackendElasticSearch                = "elasticsearch"
+	DefaultBackendStdOut                       = "stdout"
 	DefaultBackend                             = DefaultBackendElasticSearch
 	DefaultBackendAuthTypeBasic                = "basic"
 	DefaultBackendElasticSearchAuthType        = DefaultBackendAuthTypeBasic
@@ -121,6 +122,8 @@ func getBackendConfig() (string, error) {
 		return DefaultBackend, nil
 	case backendType == DefaultBackendElasticSearch:
 		return DefaultBackendElasticSearch, nil
+	case backendType == DefaultBackendStdOut:
+		return DefaultBackendStdOut, nil
 	default:
 		return backend, fmt.Errorf("backend type [%s] - %w", backendType, ErrBackendUnknown)
 	}

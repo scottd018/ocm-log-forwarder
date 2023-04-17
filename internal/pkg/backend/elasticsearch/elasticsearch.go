@@ -5,6 +5,8 @@ import (
 
 	"github.com/olivere/elastic/v7"
 	v1 "github.com/openshift-online/ocm-sdk-go/servicelogs/v1"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
@@ -69,7 +71,7 @@ func (es *ElasticSearch) Send(proc *processor.Processor, response *poller.Respon
 
 		response, err := es.BuildRequest(proc, documentBatch).BatchSend(proc)
 		if err != nil {
-			proc.Log.ErrorF("batch number [%d] failed to send - %w", batchCount, err)
+			es.Log(log.Err(err), fmt.Sprintf("batch number [%d] failed to send", batchCount))
 		}
 
 		// append the batch count and handle the response
@@ -105,13 +107,11 @@ func (es *ElasticSearch) BuildRequest(proc *processor.Processor, documents []*El
 		document := <-docChan
 
 		// add the document to the bulk request
-		proc.Log.Infof(
-			"adding document to elasticsearch bulk request: cluster=%s, id=%s, index=%s",
-			proc.Config.ClusterID,
-			document.id,
-			request.Index,
+		es.Log(log.Info().Str(
+			"cluster", proc.Config.ClusterID).Str("id", document.id).Str("index", request.Index),
+			"adding document to elasticsearch bulk request",
 		)
-		proc.Log.DebugF("document: %+v", document)
+		es.Log(log.Debug().Str("document", fmt.Sprintf("%+v", document)), "debugging document")
 		request.Bulk.Add(elastic.NewBulkIndexRequest().Id(document.id).Doc(document))
 	}
 
@@ -155,33 +155,37 @@ func (es *ElasticSearch) String() string {
 	return config.DefaultBackendElasticSearch
 }
 
+func (es *ElasticSearch) Log(event *zerolog.Event, message string) {
+	event.Str("source", fmt.Sprintf("%s-backend", es.String())).Msg(message)
+}
+
 // handleResponse handles the response for an elasticsearch request.  It stores successful
 // items on the object and logs any unsuccessful or updated items.
 func (es *ElasticSearch) handleResponse(proc *processor.Processor, response *elastic.BulkResponse) {
 	// check for failures in the responses and log
 	if response.Errors {
 		for _, failed := range response.Failed() {
-			proc.Log.ErrorF(
-				"error in elasticsearch request: index=%s, message_id=%s, status_code=%d, message=%s",
-				failed.Index,
-				failed.Id,
-				failed.Status,
-				failed.Result,
-			)
+			es.Log(
+				log.Error().
+					Str("index", failed.Index).
+					Str("message_id", failed.Id).
+					Int("status_code", failed.Status).
+					Str("result", failed.Result),
+				"error in elasticsearch request")
 		}
 	}
 
 	// check for creates in the responses and log
 	if len(response.Created()) > 0 {
 		for _, created := range response.Created() {
-			proc.Log.InfoF("created elasticsearch id: message_id=%s", created.Id)
+			es.Log(log.Info().Str("message_id", created.Id), "created elasticsearch id")
 		}
 	}
 
 	// check for updates in the responses and log
 	if len(response.Updated()) > 0 {
 		for _, updated := range response.Updated() {
-			proc.Log.InfoF("updated elasticsearch id: message_id=%s", updated.Id)
+			es.Log(log.Info().Str("message_id", updated.Id), "updated elasticsearch id")
 		}
 	}
 
@@ -190,7 +194,7 @@ func (es *ElasticSearch) handleResponse(proc *processor.Processor, response *ela
 		for _, succeeded := range response.Succeeded() {
 			es.SentDocumentIDs = append(es.SentDocumentIDs, succeeded.Id)
 
-			proc.Log.DebugF("succeeded elasticsearch id: message_id=%s", succeeded.Id)
+			es.Log(log.Debug().Str("message_id", succeeded.Id), "succeeded elasticsearch id")
 		}
 	}
 }

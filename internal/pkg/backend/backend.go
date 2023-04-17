@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/backend/elasticsearch"
+	"github.com/scottd018/ocm-log-forwarder/internal/pkg/backend/stdout"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/config"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/poller"
 	"github.com/scottd018/ocm-log-forwarder/internal/pkg/processor"
@@ -15,25 +16,14 @@ type Backend interface {
 	String() string
 }
 
-func Initialize(backend Backend, proc *processor.Processor) error {
-	switch obj := backend.(type) {
-	case *elasticsearch.ElasticSearch:
-		if err := obj.Initialize(proc); err != nil {
-			return fmt.Errorf("unable to initialize elasticsearch backend - %w", err)
-		}
-
-		return nil
-	default:
-		return fmt.Errorf("backend [%T] - %w", obj, config.ErrBackendUnknown)
-	}
-}
-
-func FromConfig(proc *processor.Processor) (Backend, error) {
+func Initialize(proc *processor.Processor) (Backend, error) {
 	var backend Backend
 
 	switch proc.Config.Backend {
 	case config.DefaultBackendElasticSearch:
 		backend = &elasticsearch.ElasticSearch{}
+	case config.DefaultBackendStdOut:
+		backend = &stdout.StdOut{}
 	default:
 		return backend, fmt.Errorf(
 			"backend from environment [%s=%s] - %w",
@@ -45,7 +35,7 @@ func FromConfig(proc *processor.Processor) (Backend, error) {
 
 	// initialize the backend from the environment
 	if err := backend.Initialize(proc); err != nil {
-		return backend, fmt.Errorf("unable to initialize backend - %w", err)
+		return backend, fmt.Errorf("unable to initialize elasticsearch backend - %w", err)
 	}
 
 	return backend, nil
